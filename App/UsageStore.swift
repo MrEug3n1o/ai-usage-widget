@@ -14,12 +14,19 @@ final class UsageStore: ObservableObject {
     static let interval: TimeInterval = 60
 
     private let store = AppGroupSnapshotStore()
+    private let alerts = AlertCenter()
     private var loop: Task<Void, Never>?
+
+    /// The most urgent meter across every configured account, for the menu bar.
+    var headline: (provider: Provider, meter: Meter)? {
+        snapshot?.providers.headline
+    }
 
     init() {
         // Show the last reading immediately rather than an empty panel while
         // the first collection runs.
         snapshot = try? store.load()
+        alerts.loadThresholds()
         start()
     }
 
@@ -40,6 +47,7 @@ final class UsageStore: ObservableObject {
 
         let next = Snapshot(providers: await Collector.collectAll())
         snapshot = next
+        alerts.check(next.providers)
         do {
             try store.save(next)
             // The host pushes; the widget's own timeline is only a fallback.

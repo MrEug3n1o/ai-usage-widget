@@ -2,51 +2,49 @@ import SwiftUI
 import UsageModel
 import UsageCollector
 
-/// Phase 2 is where this becomes a real menu bar app. For now it collects on a
-/// loop and publishes to the App Group so the widget has something to read.
 @main
 struct AIUsageApp: App {
     @StateObject private var store = UsageStore()
+    @State private var showingAccounts = false
 
     init() {
         // Mirrors the Tauri app's --probe: print the collection and exit, so
         // parity against cli/usage_monitor.py is checkable from a terminal.
         if CommandLine.arguments.contains("--probe") { Probe.runAndExit() }
+        LoginItem.enableOnFirstRun()
     }
 
     var body: some Scene {
         MenuBarExtra {
-            if let snapshot = store.snapshot {
-                ForEach(snapshot.providers.filter { !$0.isUnconfigured }, id: \.self) { provider in
-                    Text(summary(of: provider))
-                }
-                Divider()
-                Text(store.isFetching ? "Refreshing…" : "Updated \(stamp(snapshot.capturedAt))")
-            } else {
-                Text("No reading yet")
-            }
-            Divider()
-            Button("Refresh") { Task { await store.refresh() } }
-            Button("Quit") { NSApplication.shared.terminate(nil) }
+            PanelView(store: store, showingAccounts: $showingAccounts)
         } label: {
-            // Phase 2 proper adds the live percentage here.
-            Image(systemName: "gauge.with.dots.needle.50percent")
+            MenuBarLabel(headline: store.headline)
         }
-        .menuBarExtraStyle(.menu)
-    }
+        // .window, not .menu: the panel is a real view with bars and buttons,
+        // not a list of menu items.
+        .menuBarExtraStyle(.window)
 
-    private func summary(of provider: Provider) -> String {
-        if let error = provider.error { return "\(provider.name): \(error)" }
-        let meters = provider.meters
-            .map { "\($0.label) \(Int(($0.percent ?? 0).rounded()))%" }
-            .joined(separator: "  ")
-        return "\(provider.name) · \(provider.displayLabel) — \(meters)"
+        Window("Accounts", id: "accounts") {
+            AccountsView(store: store)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
     }
+}
 
-    private func stamp(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f.string(from: date)
+/// Icon plus the most urgent percentage, so the number is readable without
+/// opening anything — the main thing the Tauri build could not do.
+private struct MenuBarLabel: View {
+    let headline: (provider: Provider, meter: Meter)?
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "gauge.with.dots.needle.50percent")
+            if let percent = headline?.meter.percent {
+                Text("\(Int(percent.rounded()))%")
+                    .font(.system(size: 12, weight: .medium)).monospacedDigit()
+            }
+        }
     }
 }
 

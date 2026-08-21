@@ -76,3 +76,38 @@ public extension Provider {
         meters.first { $0.label == "Session" } ?? meters.first
     }
 }
+
+public extension Meter {
+    /// No reset time and no usage means the window has not opened yet — a
+    /// Claude session only starts on the first request. The Tauri panel dims
+    /// these rows rather than claiming "0%", which would read as "measured, and
+    /// it is zero" instead of "not started".
+    var isIdle: Bool {
+        Formatting.resetRemaining(resetAt).isEmpty && (percent ?? 0) == 0
+    }
+
+    /// "Session" on its own, or "Usage 144/500" when the provider reports
+    /// absolute figures. Ports the label composition in main.js's render().
+    var composedLabel: String {
+        guard let used, let limit else { return label }
+        return "\(label) \(used)/\(limit)"
+    }
+}
+
+public extension Provider {
+    /// The meter closest to running out. Drives the menu bar percentage, which
+    /// is a warning light: it should track whatever is about to bite, not a
+    /// fixed window.
+    var worstMeter: Meter? {
+        meters.filter { $0.percent != nil }.max { ($0.percent ?? 0) < ($1.percent ?? 0) }
+    }
+}
+
+public extension Array where Element == Provider {
+    /// The single most urgent meter across every configured account.
+    var headline: (provider: Provider, meter: Meter)? {
+        compactMap { p in p.worstMeter.map { (provider: p, meter: $0) } }
+            .filter { !$0.provider.isUnconfigured }
+            .max { ($0.meter.percent ?? 0) < ($1.meter.percent ?? 0) }
+    }
+}
