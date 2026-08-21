@@ -105,3 +105,54 @@ final class FormattingTests: XCTestCase {
         XCTAssertEqual(Severity(percent: 85), .critical)
     }
 }
+
+/// Which providers are worth showing. A provider that was never set up is
+/// noise; one that was set up and then broke must keep showing its error.
+final class UnconfiguredTests: XCTestCase {
+    private let authError =
+        "⚠ local cache · app-server: {\"code\":-32600,\"message\":\"codex account "
+        + "authentication required to read rate limits\"} (rateLimits phase, exit=None)"
+
+    /// Codex installed but with no account signed in: the app-server answers,
+    /// says it needs authentication, and there is nothing to report.
+    func testCodexInstalledWithoutAnAccountIsUnconfigured() {
+        let codex = Provider(name: "Codex", account: "ChatGPT", details: [authError])
+        XCTAssertTrue(codex.isUnconfigured)
+    }
+
+    /// Codex not installed at all.
+    func testCodexMissingEntirelyIsUnconfigured() {
+        let codex = Provider(
+            name: "Codex", account: "ChatGPT",
+            error: "app-server did not start: No such file; cache: no local session found")
+        XCTAssertTrue(codex.isUnconfigured)
+    }
+
+    /// Signed in and reporting: shown, even though the live call was downgraded
+    /// to the session cache.
+    func testCodexWithMetersIsShownEvenWhenDowngraded() {
+        let codex = Provider(
+            name: "Codex", account: "ChatGPT",
+            meters: [Meter(label: "Session", percent: 12)],
+            details: [authError])
+        XCTAssertFalse(codex.isUnconfigured)
+    }
+
+    /// A genuine failure on a configured account must not be hidden — silently
+    /// dropping it would read as "no limits" when the truth is "unknown".
+    func testCodexFailingForAnotherReasonIsStillShown() {
+        let codex = Provider(name: "Codex", account: "ChatGPT",
+                             error: "app-server did not start: connection reset")
+        XCTAssertFalse(codex.isUnconfigured)
+    }
+
+    func testCursorWithoutAKeyIsUnconfigured() {
+        XCTAssertTrue(Provider(name: "Cursor", account: "Business", plan: "Team",
+                               error: "set it up with: ai-usage cursor-cookie").isUnconfigured)
+    }
+
+    func testClaudeIsNeverHidden() {
+        XCTAssertFalse(Provider(name: "Claude", account: "work",
+                                error: "session revoked").isUnconfigured)
+    }
+}

@@ -92,12 +92,25 @@ public struct Provider: Codable, Hashable, Sendable {
     /// Tauri widget's main.js — the tests pin these exact strings, so changing
     /// a collector's error message means changing them here too.
     public var isUnconfigured: Bool {
-        guard let error, meters.isEmpty else { return false }
+        // Anything reporting real numbers is configured, whatever else it says.
+        guard meters.isEmpty else { return false }
         switch name {
         case "Cursor":
-            return error.hasPrefix("set it up with")
+            return error?.hasPrefix("set it up with") ?? false
         case "Codex":
-            return error.contains("did not start") && error.contains("no local session found")
+            // Never installed: the app-server would not start and there was no
+            // session cache to fall back on either.
+            if let error, error.contains("did not start"),
+               error.contains("no local session found") {
+                return true
+            }
+            // Installed and reachable, but no account signed in — the
+            // app-server says so and there is nothing to report. Matched on the
+            // message rather than on ~/.codex/auth.json because the widget is
+            // sandboxed and cannot look at the filesystem itself.
+            return (details + [error ?? ""]).contains {
+                $0.localizedCaseInsensitiveContains("authentication required")
+            }
         default:
             return false
         }
