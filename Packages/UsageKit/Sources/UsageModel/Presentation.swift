@@ -31,3 +31,49 @@ public extension Meter {
     var displayPercent: String { "\(Int((percent ?? 0).rounded()))%" }
     var fraction: Double { min(max((percent ?? 0) / 100, 0), 1) }
 }
+
+public extension Provider {
+    /// Short, unambiguous identity for a row. Two Claude accounts must never
+    /// render as two identical "Claude" lines — the account IS the information.
+    var shortLabel: String {
+        if !email.isEmpty, let local = email.split(separator: "@").first {
+            return String(local)
+        }
+        return account
+    }
+
+    /// Trailing caption: what it is, and which tier. "Claude · Max".
+    ///
+    /// A plan of "None" is filtered out here rather than in the collector. The
+    /// contract carries whatever the provider reported — Codex reports a null
+    /// planType, which the Python reference stringifies to the literal "None"
+    /// — and presentation decides not to render that at a user. Fixing it in
+    /// the collector would break parity with cli/usage_monitor.py.
+    var caption: String {
+        let tier = (plan.isEmpty || plan == "None") ? "" : plan
+        return tier.isEmpty ? name : "\(name) · \(tier)"
+    }
+
+    /// One line describing the meters, or the best available explanation when
+    /// there are none — never a blank line.
+    var summaryLine: String {
+        if !meters.isEmpty {
+            return meters.map { "\($0.label) \($0.displayPercent)" }.joined(separator: " · ")
+        }
+        if let error { return error }
+        guard let detail = details.first else { return "no limits reported" }
+        // Details can carry a raw RPC payload for diagnosis. That belongs in
+        // --probe output, not on a widget: keep the human half, drop the JSON.
+        if let brace = detail.firstIndex(of: "{") {
+            return detail[..<brace]
+                .trimmingCharacters(in: CharacterSet(charactersIn: " ·:-"))
+        }
+        return detail
+    }
+
+    /// The meter closest to running out — what to show when there is room for
+    /// exactly one number.
+    var worstMeter: Meter? {
+        meters.max { ($0.percent ?? -1) < ($1.percent ?? -1) }
+    }
+}
