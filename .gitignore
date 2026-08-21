@@ -20,3 +20,6 @@ Packages/*/.build/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# XcodeGen output (project.yml is the source of truth)
+*.xcodeproj/

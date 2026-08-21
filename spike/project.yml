@@ -1,0 +1,57 @@
+name: Spike
+options:
+  bundleIdPrefix: dev.erickmenezes.aiusage.spike
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: VG87LBRMTR
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.0.1"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  SpikeApp:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/SpikeApp
+        excludes: ["*.entitlements"]
+      - path: Sources/Shared
+    info:
+      path: Sources/SpikeApp/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleName: Spike
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.erickmenezes.aiusage.spike
+        CODE_SIGN_ENTITLEMENTS: Sources/SpikeApp/SpikeApp.entitlements
+    dependencies:
+      - target: SpikeWidget
+        embed: true
+        codeSign: true
+
+  SpikeWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Sources/SpikeWidget
+        excludes: ["*.entitlements", "Info.plist"]
+      - path: Sources/Shared
+    info:
+      path: Sources/SpikeWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Spike Widget
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.erickmenezes.aiusage.spike.widget
+        CODE_SIGN_ENTITLEMENTS: Sources/SpikeWidget/SpikeWidget.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
