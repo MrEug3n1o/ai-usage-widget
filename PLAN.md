@@ -180,3 +180,54 @@ follow-up.
   glanceable. Don't promise live widget numbers.
 - **`ensure_fresh` is easy to get subtly wrong in translation.** Port it line by line and run
   verification #3 before trusting it with a daily-driver account.
+
+## Parked
+
+Decided against for now, with the reasoning, so it does not get re-litigated
+from scratch.
+
+### Widget pagination — parked
+
+Widgets take no gestures, so there is no swiping or scrolling. Three ways to
+show more accounts than fit:
+
+1. **Button pagination.** `Button(intent:)` with an AppIntent that bumps a page
+   index in the App Group, then reloads the timeline. Works (macOS 14+), but
+   each tap round-trips through the extension with visible lag, and the widget
+   then holds hidden state — you glance at it later and see page 2 because you
+   left it there.
+2. **Auto-rotating pages.** The provider returns several entries at future
+   dates and the system flips through them. No interaction, but you cannot
+   choose when someone looks, so the account they care about may not be on
+   screen. That defeats a glance widget.
+3. **Configurable instances.** `AppIntentConfiguration` +
+   `AppIntentTimelineProvider` + a `SelectAccountIntent`, so each placed widget
+   pins to one account. Add two mediums, one per account, each rendered large.
+   No lag, no hidden state, and the pattern Apple designed for this.
+
+**If this is ever picked up, do option 3**, defaulting to "All accounts" so
+existing placements keep their current behaviour. Take the gotcha from
+`../disk-usage-widget/DiskUsageWidgetExtension/DiskUsage/SelectVolumeIntent.swift`
+with it: use a `DynamicOptionsProvider` over a plain `String`, **not** an
+`AppEntity` — AppIntents fails to decode the persisted `EntityIdentifier` from
+a widget timeline, falls back to `defaultResult()`, and silently pins every
+widget to the default.
+
+Not needed yet: two accounts fit comfortably at the large type size, medium
+takes three and large four or five. This earns its keep at six-plus accounts,
+or if one-account-per-widget is wanted for legibility rather than capacity.
+
+## Open threads
+
+- **`ensure_fresh` has never run its refresh or adopt branch.** Every reading so
+  far took the not-expiring path. Verification #3 is the test that matters and
+  needs a genuinely near-expiry token.
+- **Cursor's success paths are unexercised** — no `cursor.json` on this machine,
+  so only the unconfigured branch has ever run.
+- **Small and large have never been rendered.** Only medium has been placed, so
+  those `Metrics` rows are untested against real pixels.
+- **The poll interval is 60s**, inherited from the Tauri widget's `INTERVAL_MS`.
+  With two Claude accounts that is four API calls a minute, indefinitely, for a
+  widget WidgetKit only refreshes every few minutes. Running the parity gate
+  repeatedly on top of it drew `HTTP 429` from the usage endpoint once already.
+  Three to five minutes would cost nothing visible.
