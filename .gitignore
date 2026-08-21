@@ -23,3 +23,5 @@ Packages/*/.build/
 
 # XcodeGen output (project.yml is the source of truth)
 *.xcodeproj/
+.swiftpm/
+Packages/*/.build/

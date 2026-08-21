@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Mandatory: an unsandboxed widget extension never registers with
+	     pluginkit, silently. See docs/data-channel.md. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>VG87LBRMTR.group.com.erickmenezes.AIUsage</string>
+	</array>
+</dict>
+</plist>

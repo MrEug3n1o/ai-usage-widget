@@ -1,0 +1,98 @@
+name: AIUsageWidget
+
+options:
+  bundleIdPrefix: com.erickmenezes
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  UsageKit:
+    path: Packages/UsageKit
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    # Real signing via the personal team. Required for App Groups, which ad-hoc
+    # signing cannot carry; build with -allowProvisioningUpdates.
+    DEVELOPMENT_TEAM: VG87LBRMTR
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  AIUsage:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+        excludes: ["*.entitlements"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.erickmenezes.AIUsage
+        PRODUCT_NAME: AI Usage
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        # Menu bar only, no Dock icon.
+        INFOPLIST_KEY_LSUIElement: YES
+        CODE_SIGN_ENTITLEMENTS: App/App.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        COMBINE_HIDPI_IMAGES: YES
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: UserNotifications.framework
+      - package: UsageKit
+        product: UsageModel
+      - package: UsageKit
+        product: UsageCollector
+      - target: AIUsageWidgetExtension
+        embed: true
+        codeSign: true
+
+  AIUsageWidgetExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: WidgetExtension
+        excludes: ["*.entitlements", "Info.plist"]
+    info:
+      path: WidgetExtension/Info.plist
+      properties:
+        CFBundlePackageType: XPC!
+        CFBundleDisplayName: AI Usage
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.erickmenezes.AIUsage.Widget
+        PRODUCT_NAME: AIUsageWidgetExtension
+        CODE_SIGN_ENTITLEMENTS: WidgetExtension/Widget.entitlements
+        # MUST stay NO. With YES, Xcode synthesizes its own Info.plist and
+        # silently drops the NSExtension key above -> the widget disappears from
+        # the gallery with no build error and no runtime message.
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      # Model only. The extension is sandboxed and cannot collect.
+      - package: UsageKit
+        product: UsageModel
+
+schemes:
+  AIUsage:
+    build:
+      targets:
+        AIUsage: all
+      # Must be a scheme post-action, NOT a target build phase: target phases
+      # run before Xcode code-signs, so installing from one copies an unsigned
+      # app and launchd rejects it with RBS error 163.
+      postActions:
+        - name: Install to /Applications for the widget gallery
+          script: "\"$SRCROOT/Scripts/install-widget.sh\""
+          settingsTarget: AIUsage
+    run:
+      config: Debug
+    archive:
+      config: Release
