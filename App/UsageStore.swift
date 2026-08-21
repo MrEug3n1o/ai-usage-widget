@@ -13,7 +13,7 @@ final class UsageStore: ObservableObject {
     /// Matches the Tauri widget's INTERVAL_MS.
     static let interval: TimeInterval = 60
 
-    private let store = AppGroupSnapshotStore()
+    private let store = DualSnapshotStore()
     private let alerts = AlertCenter()
     private var loop: Task<Void, Never>?
 

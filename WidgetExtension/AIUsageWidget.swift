@@ -12,7 +12,7 @@ struct Entry: TimelineEntry {
 }
 
 struct UsageProvider: TimelineProvider {
-    private let store = AppGroupSnapshotStore()
+    private let store = DualSnapshotStore()
 
     private func read() -> Entry {
         do { return Entry(date: Date(), snapshot: try store.load(), error: nil) }

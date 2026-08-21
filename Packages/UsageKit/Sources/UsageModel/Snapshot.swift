@@ -36,8 +36,6 @@ public struct AppGroupSnapshotStore: SnapshotStore {
     /// the sandboxed widget's read is denied. See docs/data-channel.md.
     public static let groupID = "VG87LBRMTR.group.com.erickmenezes.AIUsage"
 
-    private let fileName = "snapshot.json"
-
     public init() {}
 
     public enum StoreError: Error, LocalizedError {
@@ -47,20 +45,104 @@ public struct AppGroupSnapshotStore: SnapshotStore {
         }
     }
 
-    private func url() throws -> URL {
+    static func url() throws -> URL {
         guard let dir = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: Self.groupID)
+            .containerURL(forSecurityApplicationGroupIdentifier: groupID)
         else { throw StoreError.noContainer }
-        return dir.appendingPathComponent(fileName)
+        return dir.appendingPathComponent("snapshot.json")
     }
 
     public func load() throws -> Snapshot {
-        let data = try Data(contentsOf: try url())
-        return try Snapshot.decoder.decode(Snapshot.self, from: data)
+        try Snapshot.read(from: Self.url())
     }
 
     public func save(_ snapshot: Snapshot) throws {
-        try Snapshot.encoder.encode(snapshot).write(to: try url(), options: .atomic)
+        try Snapshot.write(snapshot, to: Self.url())
+    }
+}
+
+/// The widget extension's own sandbox container.
+///
+/// Needs no entitlement at all, which is what makes it the channel that
+/// survives ad-hoc signing: App Groups are a restricted entitlement, so an
+/// unsigned build downloaded from a release would leave the widget reading an
+/// empty container forever. The extension sees this path as its own
+/// NSHomeDirectory; the host, being unsandboxed, writes to it absolutely.
+public struct ContainerSnapshotStore: SnapshotStore {
+    public static let widgetBundleID = "com.erickmenezes.AIUsage.Widget"
+
+    public init() {}
+
+    static func hostURL() -> URL {
+        realHome
+            .appendingPathComponent("Library/Containers/\(widgetBundleID)/Data/snapshot.json")
+    }
+
+    /// Inside the sandbox the container IS home, so the same file is reached by
+    /// a different path than the one the host writes.
+    static func readerURL() -> URL {
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        return home.path == realHome.path
+            ? hostURL()
+            : home.appendingPathComponent("snapshot.json")
+    }
+
+    /// The real home, bypassing the sandbox redirect NSHomeDirectory applies.
+    static var realHome: URL {
+        guard let pw = getpwuid(getuid()) else { return URL(fileURLWithPath: NSHomeDirectory()) }
+        return URL(fileURLWithPath: String(cString: pw.pointee.pw_dir))
+    }
+
+    public func load() throws -> Snapshot {
+        try Snapshot.read(from: Self.readerURL())
+    }
+
+    public func save(_ snapshot: Snapshot) throws {
+        try Snapshot.write(snapshot, to: Self.hostURL())
+    }
+}
+
+/// Writes both channels and reads whichever answers.
+///
+/// Which one works is decided by how the build was signed, and the app cannot
+/// tell at runtime: an unsandboxed host can write to the App Group container
+/// whether or not it is entitled, so a successful write there says nothing
+/// about the sandboxed widget's ability to read it. Writing both is a few
+/// hundred bytes and removes the question.
+public struct DualSnapshotStore: SnapshotStore {
+    private let stores: [SnapshotStore] = [AppGroupSnapshotStore(), ContainerSnapshotStore()]
+
+    public init() {}
+
+    public func save(_ snapshot: Snapshot) throws {
+        var failures: [Error] = []
+        for store in stores {
+            do { try store.save(snapshot) } catch { failures.append(error) }
+        }
+        // Only a failure of every channel is a failure.
+        if failures.count == stores.count, let first = failures.first { throw first }
+    }
+
+    public func load() throws -> Snapshot {
+        var newest: Snapshot?
+        for store in stores {
+            guard let candidate = try? store.load() else { continue }
+            if newest == nil || candidate.capturedAt > newest!.capturedAt { newest = candidate }
+        }
+        guard let newest else { throw AppGroupSnapshotStore.StoreError.noContainer }
+        return newest
+    }
+}
+
+extension Snapshot {
+    static func read(from url: URL) throws -> Snapshot {
+        try decoder.decode(Snapshot.self, from: Data(contentsOf: url))
+    }
+
+    static func write(_ snapshot: Snapshot, to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(snapshot).write(to: url, options: .atomic)
     }
 }
 
