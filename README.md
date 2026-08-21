@@ -17,12 +17,23 @@ A Swift rewrite of the Tauri widget in
 
 macOS only. Windows support is dropped in the move; the Rust collector is rewritten in Swift.
 
-## Relationship to `ai-usage-monitor`
+## Where this comes from
 
-`../ai-usage-monitor` keeps `cli/usage_monitor.py`, the headless collector and the **reference
-implementation of the data contract**. The `Provider` / `Meter` JSON shape, the user-visible meter
-labels, and the `details` strings must stay identical between the two — changing one means changing
-the other.
+This is a native rewrite of the desktop widget in
+**[ai-usage-monitor](https://github.com/felipesja/ai-usage-monitor)** by
+[@felipesja](https://github.com/felipesja). It is a descendant of that project rather than an
+independent one: the data model, the meter labels, and most of the behaviour that took real work to
+get right came from there and were ported rather than reinvented — the Claude credential mirroring
+that survives the CLI rotating a refresh token, the Codex app-server fallback to the local session
+cache, the standby detection that works out which of several accounts is actually burning quota.
+
+That project's `cli/usage_monitor.py` remains the **reference implementation of the data contract**,
+and the two are kept in step deliberately: `Scripts/parity.sh` diffs this app's collection against
+it, and a divergence in the `Provider` / `Meter` shape, the meter labels, or the `details` strings is
+treated as a bug here rather than a difference of opinion.
+
+What is new here is the macOS half — a Swift collector in place of the Python and Rust ones, a
+SwiftUI menu bar app, and a WidgetKit extension. Licensed MIT, as the original is.
 
 ## Installing
 
