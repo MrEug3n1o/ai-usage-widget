@@ -42,7 +42,7 @@ struct AccountsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 460)
-        .frame(minHeight: 400, maxHeight: 620)
+        .frame(minHeight: 400, maxHeight: 700)
         .task { detection = Accounts.detect() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let message {
@@ -189,14 +189,18 @@ private struct CursorSection: View {
                 Text("Team admin key").tag("admin_key")
                 Text("Dashboard cookie").tag("dashboard_cookie")
             }
-            // SecureField: these are credentials, and this window can be open
-            // while a screen is being shared.
-            SecureField(method == "admin_key" ? "key_…" : "WorkosCursorSessionToken=…",
-                        text: $secret)
-                .textFieldStyle(.roundedBorder)
+            // In a grouped Form the first string is the row's LABEL, not a
+            // placeholder — passing "key_…" there labelled the row "key_…"
+            // beside an empty box. The example goes in `prompt`.
+            //
+            // SecureField because these are credentials and this window can be
+            // open while a screen is being shared.
+            SecureField(method == "admin_key" ? "Admin key" : "Session cookie",
+                        text: $secret,
+                        prompt: Text(method == "admin_key"
+                                     ? "key_…" : "WorkosCursorSessionToken=…"))
             if method == "admin_key" {
-                TextField("Email on the team", text: $email)
-                    .textFieldStyle(.roundedBorder)
+                TextField("Email", text: $email, prompt: Text("you@company.com"))
             }
             HStack {
                 Spacer()
