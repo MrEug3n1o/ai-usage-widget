@@ -4,6 +4,10 @@ import UsageCollector
 
 /// Account management. This lives in the app and not the widget because the
 /// widget is sandboxed: it can reach neither the Keychain nor the config dir.
+///
+/// Laid out as a grouped Form, which is the shape macOS Settings uses — the
+/// sections read as sections without hand-drawn boxes, and the window sizes
+/// itself to the content instead of leaving a slab of empty space below it.
 struct AccountsView: View {
     @ObservedObject var store: UsageStore
 
@@ -11,9 +15,9 @@ struct AccountsView: View {
     @State private var busy: String?
     @State private var message: (text: String, isError: Bool)?
 
-    /// Registered Claude accounts, taken from the last reading rather than by
-    /// re-identifying each profile — that would mean a network round trip and a
-    /// Keychain prompt just to draw the list.
+    /// Registered accounts come from the last reading rather than from
+    /// re-identifying each profile, which would mean a network round trip and a
+    /// Keychain prompt just to draw a list.
     private var registered: [Provider] {
         (store.snapshot?.providers ?? []).filter { $0.name == "Claude" }
     }
@@ -31,66 +35,76 @@ struct AccountsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                claudeSection
-                Divider()
-                CursorSection(configured: detection?.cursorConfigured ?? false,
-                              onChange: reload)
-            }
-            .padding(20)
+        Form {
+            claudeSection
+            availableSection
+            CursorSection(configured: detection?.cursorConfigured ?? false, onChange: reload)
         }
-        .frame(width: 460, height: 560)
+        .formStyle(.grouped)
+        .frame(width: 460)
+        .frame(minHeight: 400, maxHeight: 620)
         .task { detection = Accounts.detect() }
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if let message {
-                Text(message.text)
-                    .font(.caption)
-                    .foregroundStyle(message.isError ? .red : .secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20).padding(.vertical, 8)
-                    .background(.bar)
+                HStack(spacing: 6) {
+                    Image(systemName: message.isError
+                          ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                    Text(message.text).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .font(.caption)
+                .foregroundStyle(message.isError ? .red : .secondary)
+                .padding(.horizontal, 18).padding(.vertical, 9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.bar)
             }
         }
     }
 
     private var claudeSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Claude accounts").font(.headline)
-
+        Section("Claude accounts") {
             if registered.isEmpty {
-                Text("No accounts registered yet.")
-                    .font(.callout).foregroundStyle(.secondary)
+                Text("None registered yet.").foregroundStyle(.secondary)
             }
             ForEach(registered, id: \.self) { provider in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(provider.displayLabel).font(.callout.weight(.medium))
-                        Text(provider.plan.isEmpty ? provider.account
-                                                   : "\(provider.account) · \(provider.plan)")
+                HStack(spacing: 10) {
+                    Circle().fill(provider.accent).frame(width: 7, height: 7)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(provider.displayLabel)
+                            .lineLimit(1).truncationMode(.middle)
+                        Text(provider.plan.isEmpty
+                             ? provider.account : "\(provider.account) · \(provider.plan)")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    Spacer()
+                    Spacer(minLength: 8)
                     Button("Remove") { remove(provider.account) }
                         .disabled(busy != nil)
                 }
                 .padding(.vertical, 2)
             }
+        }
+    }
 
-            Text("Available on this Mac").font(.subheadline).padding(.top, 6)
+    private var availableSection: some View {
+        Section {
             if offerable.isEmpty {
-                Text("Every login found here is already registered.")
-                    .font(.callout).foregroundStyle(.secondary)
+                Text("Every Claude Code login on this Mac is already registered.")
+                    .foregroundStyle(.secondary)
             }
             ForEach(offerable) { candidate in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(candidate.label).font(.callout)
+                HStack(spacing: 10) {
+                    Image(systemName: candidate.id.hasPrefix("keychain:")
+                          ? "key.fill" : "doc.fill")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 14)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(candidate.label).lineLimit(1)
                         if let email = candidate.email {
                             Text(email).font(.caption).foregroundStyle(.secondary)
+                                .lineLimit(1).truncationMode(.middle)
                         }
                     }
-                    Spacer()
+                    Spacer(minLength: 8)
                     if busy == candidate.id {
                         ProgressView().controlSize(.small)
                     } else {
@@ -99,12 +113,13 @@ struct AccountsView: View {
                 }
                 .padding(.vertical, 2)
             }
-            // Reading the secret is what triggers the prompt; listing above
-            // never touches one.
-            Text("Adding an account reads its credential, so macOS will ask for "
+        } header: {
+            Text("Available on this Mac")
+        } footer: {
+            // Listing never reads a secret; Add does, and that is what prompts.
+            Text("Adding an account reads its credential, so macOS asks for "
                  + "permission the first time.")
-                .font(.caption2).foregroundStyle(.secondary)
-                .padding(.top, 2)
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -116,7 +131,7 @@ struct AccountsView: View {
             do {
                 let result = try await Accounts.addClaude(candidate.id)
                 message = (result.already
-                    ? "\(result.email) was already registered as \(result.profile); its source was re-pointed here."
+                    ? "\(result.email) was already registered as \(result.profile); its source now points here."
                     : "Added \(result.email) as \(result.profile).", false)
                 reload()
             } catch {
@@ -152,38 +167,37 @@ private struct CursorSection: View {
     @State private var message: (text: String, isError: Bool)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Cursor").font(.headline)
-                Spacer()
-                if configured {
-                    Button("Remove") {
-                        do { try Accounts.removeCursor(); message = ("Removed.", false); onChange() }
-                        catch { message = (error.localizedDescription, true) }
+        Section {
+            LabeledContent("Status") {
+                HStack(spacing: 8) {
+                    Text(configured ? "Configured" : "Not configured")
+                        .foregroundStyle(.secondary)
+                    if configured {
+                        Button("Remove") {
+                            do {
+                                try Accounts.removeCursor()
+                                message = ("Removed.", false)
+                                onChange()
+                            } catch {
+                                message = (error.localizedDescription, true)
+                            }
+                        }
                     }
                 }
             }
-            Text(configured ? "Configured." : "Not configured.")
-                .font(.caption).foregroundStyle(.secondary)
-
             Picker("Method", selection: $method) {
                 Text("Team admin key").tag("admin_key")
                 Text("Dashboard cookie").tag("dashboard_cookie")
             }
-            .pickerStyle(.segmented)
-
-            // SecureField: these are credentials, and this window can be on
-            // screen while sharing one.
+            // SecureField: these are credentials, and this window can be open
+            // while a screen is being shared.
             SecureField(method == "admin_key" ? "key_…" : "WorkosCursorSessionToken=…",
                         text: $secret)
+                .textFieldStyle(.roundedBorder)
             if method == "admin_key" {
-                TextField("Your email on the team", text: $email)
-            } else {
-                Text("The team admin key is preferred; the dashboard endpoint is "
-                     + "internal and may break without notice.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                TextField("Email on the team", text: $email)
+                    .textFieldStyle(.roundedBorder)
             }
-
             HStack {
                 Spacer()
                 Button("Save") {
@@ -203,6 +217,14 @@ private struct CursorSection: View {
                 Text(message.text)
                     .font(.caption)
                     .foregroundStyle(message.isError ? .red : .secondary)
+            }
+        } header: {
+            Text("Cursor")
+        } footer: {
+            if method == "dashboard_cookie" {
+                Text("The team admin key is preferred; the dashboard endpoint is "
+                     + "internal and may break without notice.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
