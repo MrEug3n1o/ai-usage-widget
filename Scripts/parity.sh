@@ -14,17 +14,7 @@ APP="/Applications/AI Usage.app/Contents/MacOS/AI Usage"
 
 # reset_at moves between the two runs and percentages drift as quota is spent;
 # both are compared for presence and shape, not value.
-normalize() {
-    python3 -c '
-import json, sys
-def scrub(p):
-    for m in p.get("meters", []):
-        if m.get("reset_at"): m["reset_at"] = "<timestamp>"
-        if m.get("percent") is not None: m["percent"] = round(float(m["percent"]), 0)
-    return p
-print(json.dumps([scrub(p) for p in json.load(sys.stdin)], indent=2, sort_keys=True))
-'
-}
+normalize() { python3 "$(dirname "$0")/normalize.py"; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
