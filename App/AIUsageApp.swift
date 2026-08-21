@@ -5,7 +5,7 @@ import UsageCollector
 @main
 struct AIUsageApp: App {
     @StateObject private var store = UsageStore()
-    @State private var showingAccounts = false
+    @Environment(\.openWindow) private var openWindow
 
     init() {
         // Mirrors the Tauri app's --probe: print the collection and exit, so
@@ -16,7 +16,7 @@ struct AIUsageApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            PanelView(store: store, showingAccounts: $showingAccounts)
+            PanelView(store: store, openAccounts: { openWindow(id: "accounts") })
         } label: {
             MenuBarLabel(headline: store.headline)
         }

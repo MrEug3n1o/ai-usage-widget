@@ -203,3 +203,36 @@ enum Claude {
         return try await HTTP.json(request) as? [String: Any] ?? [:]
     }
 }
+
+extension Claude {
+    /// Refresh-if-needed plus the account's identity (email, plan) for the
+    /// credential at `path`, without collecting usage.
+    ///
+    /// Registration uses this to recognise an account that is already
+    /// registered, so a stale copy is healed rather than added a second time
+    /// under a suffixed name.
+    static func identify(_ path: URL) async throws -> (email: String, plan: String) {
+        guard var data = try Config.readJSON(path) as? [String: Any] else {
+            throw SimpleError("the file does not contain a Claude OAuth session")
+        }
+        let profileDir = path.deletingLastPathComponent()
+        data = try await ensureFresh(profileDir: profileDir, path: path, data: data)
+
+        guard let oauth = data.dict("claudeAiOauth") else {
+            throw SimpleError("the file does not contain a Claude OAuth session")
+        }
+        guard let token = oauth.string("accessToken") else {
+            throw SimpleError("credential has no accessToken")
+        }
+        let request = try HTTP.request(profileURL, headers: [
+            "Authorization": "Bearer \(token)",
+            "anthropic-beta": "oauth-2025-04-20",
+            "User-Agent": "claude-code/2",
+            "Accept": "application/json",
+        ])
+        guard let payload = try await HTTP.json(request) as? [String: Any],
+              let email = payload.dict("account")?.string("email")
+        else { throw SimpleError("the profile response has no email") }
+        return (email, Text.titleCase(oauth.string("subscriptionType") ?? ""))
+    }
+}

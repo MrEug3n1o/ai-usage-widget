@@ -5,7 +5,7 @@ import UsageModel
 /// accent, bars, percentages, renewal time and the standby marker.
 struct PanelView: View {
     @ObservedObject var store: UsageStore
-    @Binding var showingAccounts: Bool
+    let openAccounts: () -> Void
 
     private var providers: [Provider] {
         (store.snapshot?.providers ?? []).filter { !$0.isUnconfigured }
@@ -46,7 +46,12 @@ struct PanelView: View {
             .help("Refresh now")
             .disabled(store.isFetching)
 
-            Button { showingAccounts = true } label: {
+            Button {
+                // A menu bar app has no Dock icon, so the window would open
+                // behind everything without activating first.
+                NSApp.activate(ignoringOtherApps: true)
+                openAccounts()
+            } label: {
                 Image(systemName: "gearshape")
             }
             .buttonStyle(.borderless)
