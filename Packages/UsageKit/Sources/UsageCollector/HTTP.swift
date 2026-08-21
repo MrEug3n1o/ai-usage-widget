@@ -60,3 +60,22 @@ extension Dictionary where Key == String, Value == Any {
         return n.doubleValue
     }
 }
+
+extension HTTP {
+    struct RawResponse {
+        let status: Int?
+        let body: String
+        let json: Any?
+    }
+
+    /// Like `json`, but a non-2xx comes back instead of throwing: the Claude
+    /// token endpoint distinguishes a revoked session from a transient failure
+    /// only by the error body.
+    static func jsonAllowingError(_ request: URLRequest) async throws -> RawResponse {
+        let (data, response) = try await session.data(for: request)
+        return RawResponse(
+            status: (response as? HTTPURLResponse)?.statusCode,
+            body: String(decoding: data, as: UTF8.self),
+            json: try? JSONSerialization.jsonObject(with: data))
+    }
+}
