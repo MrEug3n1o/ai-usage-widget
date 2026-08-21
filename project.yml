@@ -37,6 +37,8 @@ targets:
         # Menu bar only, no Dock icon.
         INFOPLIST_KEY_LSUIElement: YES
         CODE_SIGN_ENTITLEMENTS: App/App.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: YES
         COMBINE_HIDPI_IMAGES: YES
     dependencies:
