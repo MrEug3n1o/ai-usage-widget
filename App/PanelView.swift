@@ -1,8 +1,10 @@
 import SwiftUI
 import UsageModel
 
-/// The menu bar panel, carrying the Tauri widget's compact layout: per-provider
-/// accent, bars, percentages, renewal time and the standby marker.
+/// The menu bar panel. Carries the Tauri widget's information — per-provider
+/// accent, standby marker, plan, bars, percentages, renewal times — with the
+/// same identity-first ordering the desktop widget uses, so the two surfaces
+/// read alike.
 struct PanelView: View {
     @ObservedObject var store: UsageStore
     let openAccounts: () -> Void
@@ -14,78 +16,101 @@ struct PanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            Divider()
-            if providers.isEmpty {
-                Text(store.snapshot == nil ? "Collecting…" : "Nothing configured")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 28)
-            } else {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach(providers, id: \.self) { ProviderCard(provider: $0) }
-                }
-                .padding(14)
-            }
-            Divider()
+            Divider().opacity(0.5)
+            content
+            Divider().opacity(0.5)
             footer
         }
         .frame(width: 340)
+        // The panel sits over whatever happens to be behind it, and a thin
+        // material lets high-contrast text — a terminal, usually — read
+        // straight through the numbers. Thick enough to stay legible.
+        .background(.ultraThickMaterial)
+    }
+
+    @ViewBuilder private var content: some View {
+        if providers.isEmpty {
+            Text(store.snapshot == nil ? "Collecting…" : "Nothing configured")
+                .font(.callout).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 30)
+        } else {
+            VStack(spacing: 8) {
+                ForEach(providers, id: \.self) { ProviderCard(provider: $0) }
+            }
+            .padding(10)
+        }
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Text("AI Usage").font(.headline)
+        HStack(spacing: 7) {
+            Text("AI Usage").font(.system(size: 14, weight: .semibold))
             if store.isFetching {
-                ProgressView().controlSize(.small).scaleEffect(0.7)
+                ProgressView().controlSize(.small).scaleEffect(0.6)
+                    .frame(width: 14, height: 14)
             }
             Spacer()
-            Button { Task { await store.refresh() } } label: {
-                Image(systemName: "arrow.clockwise")
+            IconButton(symbol: "arrow.clockwise", help: "Refresh now") {
+                Task { await store.refresh() }
             }
-            .buttonStyle(.borderless)
-            .help("Refresh now")
             .disabled(store.isFetching)
-
-            Button {
+            IconButton(symbol: "gearshape", help: "Accounts") {
                 // A menu bar app has no Dock icon, so the window would open
                 // behind everything without activating first.
                 NSApp.activate(ignoringOtherApps: true)
                 openAccounts()
-            } label: {
-                Image(systemName: "gearshape")
             }
-            .buttonStyle(.borderless)
-            .help("Accounts")
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
     }
 
     private var footer: some View {
-        HStack(spacing: 8) {
+        HStack {
             if let snapshot = store.snapshot {
                 Text("Updated \(snapshot.capturedAt.formatted(date: .omitted, time: .standard))")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
             Button("Quit") { NSApplication.shared.terminate(nil) }
-                .buttonStyle(.borderless)
-                .font(.caption)
+                .buttonStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.vertical, 9)
     }
 }
 
+private struct IconButton: View {
+    let symbol: String
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+}
+
+/// One account. Led by who it is, not by which provider — with two Claude
+/// accounts the provider name is the part that does not distinguish them.
 private struct ProviderCard: View {
     let provider: Provider
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(provider.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(provider.accent)
+                Text(provider.shortLabel)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1).truncationMode(.middle)
                 // With two or more Claude accounts the collector flags standby
                 // on the ones the CLI is not logged into: the unbadged one is
                 // the account actually burning quota.
@@ -97,19 +122,18 @@ private struct ProviderCard: View {
                         .background(Capsule().fill(.quaternary))
                 }
                 Spacer(minLength: 4)
-                if !provider.plan.isEmpty {
-                    Text(provider.plan.uppercased())
+                HStack(spacing: 4) {
+                    Circle().fill(provider.accent).frame(width: 6, height: 6)
+                    Text(provider.caption.uppercased())
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
+                .layoutPriority(-1)
             }
-            Text(provider.displayLabel)
-                .font(.caption).foregroundStyle(.secondary)
-                .lineLimit(1).truncationMode(.middle)
 
             if let error = provider.error {
-                Text("! \(error)")
-                    .font(.caption).foregroundStyle(.red)
+                Text(error)
+                    .font(.system(size: 11)).foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
             ForEach(provider.meters, id: \.self) { meter in
@@ -117,12 +141,16 @@ private struct ProviderCard: View {
             }
             ForEach(provider.details, id: \.self) { detail in
                 Text(detail)
-                    .font(.caption2)
+                    .font(.system(size: 10))
                     .foregroundStyle(detail.hasPrefix("⚠") ? .orange : .secondary)
                     .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
         }
-        .opacity(provider.standby ? 0.6 : 1)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(.quaternary.opacity(0.35)))
+        .opacity(provider.standby ? 0.62 : 1)
     }
 }
 
@@ -135,29 +163,29 @@ private struct MeterLine: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(meter.composedLabel)
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .foregroundStyle(meter.isIdle ? .tertiary : .secondary)
                 Spacer(minLength: 4)
                 Text(meter.percent == nil ? "--" : meter.displayPercent)
-                    .font(.caption.weight(.semibold)).monospacedDigit()
+                    .font(.system(size: 13, weight: .semibold)).monospacedDigit()
                     .foregroundStyle(meter.isIdle ? AnyShapeStyle(.tertiary) : AnyShapeStyle(tint))
                 // A window that has not opened yet shows "-", not "0m", which
                 // would imply it is about to renew.
                 Text(meter.isIdle ? "-" : Formatting.resetRemaining(meter.resetAt))
-                    .font(.caption2).foregroundStyle(.tertiary)
-                    .frame(width: 52, alignment: .trailing)
+                    .font(.system(size: 11)).foregroundStyle(.tertiary).monospacedDigit()
+                    .frame(width: 54, alignment: .trailing)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(.quaternary)
                     Capsule().fill(tint)
-                        .frame(width: max(2, geo.size.width * meter.fraction))
+                        .frame(width: max(3, geo.size.width * meter.fraction))
                 }
             }
-            .frame(height: 5)
+            .frame(height: 6)
             .opacity(meter.isIdle ? 0.4 : 1)
         }
     }
