@@ -222,9 +222,9 @@ private struct CompactRow: View {
             // Fixed width whether or not there is a ring, so a provider with no
             // meters does not shunt its text out of the column.
             Group {
-                if let worst = provider.worstMeter {
-                    Ring(meter: worst,
-                         style: SeverityStyle(mode: mode, severity: worst.severity,
+                if let primary = provider.primaryMeter {
+                    Ring(meter: primary,
+                         style: SeverityStyle(mode: mode, severity: primary.severity,
                                               accent: provider.accent),
                          diameter: metrics.ring, lineWidth: metrics.ringLine)
                 } else {
@@ -305,7 +305,7 @@ struct AIUsageWidgetView: View {
     }
 
     private var small: some View {
-        let pick = providers.compactMap { p in p.worstMeter.map { (p, $0) } }
+        let pick = providers.compactMap { p in p.primaryMeter.map { (p, $0) } }
             .max { ($0.1.percent ?? -1) < ($1.1.percent ?? -1) }
         return VStack(spacing: 0) {
             HStack(spacing: 4) {

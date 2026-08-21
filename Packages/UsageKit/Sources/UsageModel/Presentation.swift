@@ -65,9 +65,14 @@ public extension Provider {
         return detail
     }
 
-    /// The meter closest to running out — what to show when there is room for
-    /// exactly one number.
-    var worstMeter: Meter? {
-        meters.max { ($0.percent ?? -1) < ($1.percent ?? -1) }
+    /// The meter the ring stands for when there is room for exactly one number.
+    ///
+    /// The rolling session window, deliberately, not whichever meter happens to
+    /// read highest: the session is what governs whether the next prompt goes
+    /// through, and the weekly figure would otherwise mask it for most of the
+    /// week. Providers with no session (Cursor bills monthly) fall back to
+    /// their first meter.
+    var primaryMeter: Meter? {
+        meters.first { $0.label == "Session" } ?? meters.first
     }
 }

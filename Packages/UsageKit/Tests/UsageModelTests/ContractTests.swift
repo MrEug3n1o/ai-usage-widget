@@ -156,3 +156,41 @@ final class UnconfiguredTests: XCTestCase {
                                 error: "session revoked").isUnconfigured)
     }
 }
+
+final class PrimaryMeterTests: XCTestCase {
+    /// The ring must show the session even when the weekly figure is higher —
+    /// which it is for most of the week, so picking the larger number would
+    /// hide the meter that actually gates the next prompt.
+    func testSessionWinsOverAHigherWeekly() {
+        let provider = Provider(name: "Claude", account: "work", meters: [
+            Meter(label: "Session", percent: 9),
+            Meter(label: "Weekly", percent: 22),
+        ])
+        XCTAssertEqual(provider.primaryMeter?.label, "Session")
+        XCTAssertEqual(provider.primaryMeter?.percent, 9)
+    }
+
+    /// Order in the array must not decide it either.
+    func testSessionWinsRegardlessOfPosition() {
+        let provider = Provider(name: "Claude", account: "work", meters: [
+            Meter(label: "Weekly", percent: 22),
+            Meter(label: "Weekly Sonnet", percent: 40),
+            Meter(label: "Session", percent: 9),
+        ])
+        XCTAssertEqual(provider.primaryMeter?.label, "Session")
+    }
+
+    /// Cursor bills monthly and has no session; fall back to its first meter
+    /// rather than showing nothing.
+    func testProviderWithoutASessionUsesItsFirstMeter() {
+        let provider = Provider(name: "Cursor", account: "Business", meters: [
+            Meter(label: "Total usage", percent: 30),
+            Meter(label: "Auto", percent: 12),
+        ])
+        XCTAssertEqual(provider.primaryMeter?.label, "Total usage")
+    }
+
+    func testNoMetersMeansNoRing() {
+        XCTAssertNil(Provider(name: "Codex", account: "ChatGPT").primaryMeter)
+    }
+}
