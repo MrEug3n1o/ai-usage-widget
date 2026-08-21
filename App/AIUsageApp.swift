@@ -11,6 +11,13 @@ struct AIUsageApp: App {
         // Mirrors the Tauri app's --probe: print the collection and exit, so
         // parity against cli/usage_monitor.py is checkable from a terminal.
         if CommandLine.arguments.contains("--probe") { Probe.runAndExit() }
+
+        // Menu bar only, no Dock icon — set here rather than with LSUIElement
+        // in the Info.plist. Launch Services reads that key statically and an
+        // agent app's icon does not reach the widget gallery; setting the
+        // policy at runtime hides the Dock icon just the same.
+        NSApp.setActivationPolicy(.accessory)
+
         LoginItem.enableOnFirstRun()
     }
 
