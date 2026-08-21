@@ -234,13 +234,15 @@ or if one-account-per-widget is wanted for legibility rather than capacity.
   Phase 0 spike extension was still registered from its build dir — both now
   unregistered, which was worth doing regardless).
 
-  Untried, cheapest first: give the widget extension its own
-  Assets.xcassets with an AppIcon, since some macOS versions look there rather
-  than at the containing app; check whether the macOS 26 gallery shows a
-  rendered preview rather than an app icon at all, in which case there is
-  nothing to fix; and last, the icon services cache
-  (`/Library/Caches/com.apple.iconservices.store`), which needs sudo and is
-  the least likely to be the cause.
+  Tried since: the widget extension now carries its own Assets.xcassets with
+  the same AppIcon, so the appex ships AppIcon.icns and Assets.car and its
+  Info.plist has CFBundleIconFile and CFBundleIconName. Whether that is what
+  the gallery reads is still unconfirmed.
+
+  Untried: check whether the macOS 26 gallery shows a rendered preview rather
+  than an app icon at all, in which case there is nothing to fix; and last the
+  icon services cache (`/Library/Caches/com.apple.iconservices.store`), which
+  needs sudo and is the least likely cause.
 
 - **The poll interval is 60s**, inherited from the Tauri widget's `INTERVAL_MS`.
   With two Claude accounts that is four API calls a minute, indefinitely, for a

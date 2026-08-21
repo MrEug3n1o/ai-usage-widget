@@ -70,6 +70,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.erickmenezes.AIUsage.Widget
         PRODUCT_NAME: AIUsageWidgetExtension
         CODE_SIGN_ENTITLEMENTS: WidgetExtension/Widget.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME: WidgetBackground
         # MUST stay NO. With YES, Xcode synthesizes its own Info.plist and
         # silently drops the NSExtension key above -> the widget disappears from
         # the gallery with no build error and no runtime message.
