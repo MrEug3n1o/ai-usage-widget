@@ -194,3 +194,18 @@ final class PrimaryMeterTests: XCTestCase {
         XCTAssertNil(Provider(name: "Codex", account: "ChatGPT").primaryMeter)
     }
 }
+
+final class IdentityTests: XCTestCase {
+    /// The domain says which account it is — work or personal — so the label
+    /// keeps it rather than showing only the local part.
+    func testLabelKeepsTheWholeEmail() {
+        let provider = Provider(name: "Claude", account: "erick.menezes",
+                                email: "erick.menezes@revelo.com")
+        XCTAssertEqual(provider.shortLabel, "erick.menezes@revelo.com")
+    }
+
+    /// Providers with no email fall back to the profile directory name.
+    func testLabelFallsBackToTheAccount() {
+        XCTAssertEqual(Provider(name: "Codex", account: "ChatGPT").shortLabel, "ChatGPT")
+    }
+}

@@ -50,8 +50,8 @@ private struct Metrics {
     static func rows(_ count: Int) -> Metrics {
         switch count {
         case ...2:
-            Metrics(ring: 54, ringLine: 6, name: 17, caption: 13, summary: 14,
-                    meterLabel: 13, percent: 15, bar: 8, spacing: 14, padding: 16)
+            Metrics(ring: 52, ringLine: 6, name: 16, caption: 12, summary: 14,
+                    meterLabel: 13, percent: 15, bar: 8, spacing: 16, padding: 14)
         case 3:
             Metrics(ring: 44, ringLine: 5, name: 15, caption: 12, summary: 13,
                     meterLabel: 12, percent: 14, bar: 7, spacing: 11, padding: 15)
@@ -173,22 +173,25 @@ private struct ProviderBlock: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(provider.shortLabel)
-                    .font(.system(size: metrics.name, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                if provider.standby {
-                    Text("standby")
-                        .font(.system(size: metrics.caption - 2, weight: .medium))
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .background(Capsule().fill(.quaternary))
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(provider.shortLabel)
+                        .font(.system(size: metrics.name, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .truncationMode(.middle)
+                    if provider.standby {
+                        Text("standby")
+                            .font(.system(size: metrics.caption - 2, weight: .medium))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Capsule().fill(.quaternary))
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 4)
                 Text(provider.caption)
                     .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1).layoutPriority(-1)
+                    .lineLimit(1)
             }
             if let error = provider.error {
                 Text(error)
@@ -233,16 +236,17 @@ private struct CompactRow: View {
                 }
             }
             .frame(width: metrics.ring)
+            // A line each. The address, the tier and the meters all matter and
+            // none of them fits beside another at a readable size, but there is
+            // vertical room going spare.
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(provider.shortLabel)
-                        .font(.system(size: metrics.name, weight: .semibold))
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                    Spacer(minLength: 4)
-                    Text(provider.caption)
-                        .font(.system(size: metrics.caption)).foregroundStyle(.secondary)
-                        .lineLimit(1).layoutPriority(-1)
-                }
+                Text(provider.shortLabel)
+                    .font(.system(size: metrics.name, weight: .semibold))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .truncationMode(.middle)
+                Text(provider.caption)
+                    .font(.system(size: metrics.caption)).foregroundStyle(.secondary)
+                    .lineLimit(1)
                 Text(provider.summaryLine)
                     .font(.system(size: metrics.summary))
                     .foregroundStyle(.secondary)
@@ -312,6 +316,7 @@ struct AIUsageWidgetView: View {
                 Text(pick?.0.shortLabel ?? "AI Usage")
                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(0.7)
+                    .truncationMode(.middle)
                 staleBadge
             }
             Spacer(minLength: 8)
@@ -333,7 +338,7 @@ struct AIUsageWidgetView: View {
     }
 
     private var compact: some View {
-        let shown = Array(providers.prefix(3))
+        let shown = Array(providers.prefix(2))
         let hidden = providers.count - shown.count
         let metrics = Metrics.rows(shown.count)
         return VStack(alignment: .leading, spacing: metrics.spacing) {

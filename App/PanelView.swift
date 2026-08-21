@@ -111,6 +111,7 @@ private struct ProviderCard: View {
                 Text(provider.shortLabel)
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1).truncationMode(.middle)
+                    .layoutPriority(1)
                 // With two or more Claude accounts the collector flags standby
                 // on the ones the CLI is not logged into: the unbadged one is
                 // the account actually burning quota.

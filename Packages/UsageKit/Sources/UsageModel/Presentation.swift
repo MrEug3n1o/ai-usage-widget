@@ -33,13 +33,12 @@ public extension Meter {
 }
 
 public extension Provider {
-    /// Short, unambiguous identity for a row. Two Claude accounts must never
-    /// render as two identical "Claude" lines — the account IS the information.
+    /// Identity for a row: the whole email, domain included. Two Claude
+    /// accounts must never render as two identical "Claude" lines, and the
+    /// domain is the half that says which account it is — work or personal.
+    /// Where space runs short, truncate in the MIDDLE so the domain survives.
     var shortLabel: String {
-        if !email.isEmpty, let local = email.split(separator: "@").first {
-            return String(local)
-        }
-        return account
+        email.isEmpty ? account : email
     }
 
     /// Trailing caption: what it is, and which tier. "Claude · Max", or just
