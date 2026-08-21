@@ -30,6 +30,38 @@ struct UsageProvider: TimelineProvider {
     }
 }
 
+// MARK: - Metrics
+
+/// Point sizes chosen from how many rows have to fit. A widget showing two
+/// accounts has room to be read from across the desk; one showing five does
+/// not, and shrinking beats clipping.
+private struct Metrics {
+    var ring: CGFloat
+    var ringLine: CGFloat
+    var name: CGFloat
+    var caption: CGFloat
+    var summary: CGFloat
+    var meterLabel: CGFloat
+    var percent: CGFloat
+    var bar: CGFloat
+    var spacing: CGFloat
+    var padding: CGFloat
+
+    static func rows(_ count: Int) -> Metrics {
+        switch count {
+        case ...2:
+            Metrics(ring: 54, ringLine: 6, name: 17, caption: 13, summary: 14,
+                    meterLabel: 13, percent: 15, bar: 8, spacing: 14, padding: 16)
+        case 3:
+            Metrics(ring: 44, ringLine: 5, name: 15, caption: 12, summary: 13,
+                    meterLabel: 12, percent: 14, bar: 7, spacing: 11, padding: 15)
+        default:
+            Metrics(ring: 36, ringLine: 4, name: 13, caption: 11, summary: 11,
+                    meterLabel: 11, percent: 12, bar: 6, spacing: 8, padding: 14)
+        }
+    }
+}
+
 // MARK: - Pieces
 
 /// Severity as a fill style. On the desktop macOS renders widgets in `.vibrant`
@@ -58,6 +90,7 @@ private struct SeverityStyle {
 private struct Bar: View {
     let meter: Meter
     let style: SeverityStyle
+    var height: CGFloat = 8
 
     var body: some View {
         GeometryReader { geo in
@@ -68,7 +101,7 @@ private struct Bar: View {
                     .frame(width: max(3, geo.size.width * meter.fraction))
             }
         }
-        .frame(height: 6)
+        .frame(height: height)
         .widgetAccentable()
     }
 }
@@ -88,7 +121,7 @@ private struct Ring: View {
                 .stroke(style.fill, style: .init(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text("\(Int((meter.percent ?? 0).rounded()))")
-                .font(.system(size: diameter * 0.34, weight: .medium))
+                .font(.system(size: diameter * 0.40, weight: .medium))
                 .monospacedDigit()
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
@@ -102,27 +135,30 @@ private struct MeterRow: View {
     let meter: Meter
     let style: SeverityStyle
     let showReset: Bool
+    let metrics: Metrics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(meter.label)
-                    .font(.caption2)
+                    .font(.system(size: metrics.meterLabel))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 if showReset {
                     let left = Formatting.resetRemaining(meter.resetAt)
                     if !left.isEmpty {
-                        Text(left).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                        Text(left)
+                            .font(.system(size: metrics.meterLabel))
+                            .foregroundStyle(.tertiary).lineLimit(1)
                     }
                 }
                 Text(meter.displayPercent)
-                    .font(.caption.weight(.semibold))
+                    .font(.system(size: metrics.percent, weight: .semibold))
                     .monospacedDigit()
                     .lineLimit(1)
             }
-            Bar(meter: meter, style: style)
+            Bar(meter: meter, style: style, height: metrics.bar)
         }
     }
 }
@@ -133,29 +169,30 @@ private struct ProviderBlock: View {
     let provider: Provider
     let mode: WidgetRenderingMode
     let showReset: Bool
+    let metrics: Metrics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(provider.shortLabel)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: metrics.name, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 if provider.standby {
                     Text("standby")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: metrics.caption - 2, weight: .medium))
                         .padding(.horizontal, 5).padding(.vertical, 1)
                         .background(Capsule().fill(.quaternary))
                 }
                 Spacer(minLength: 4)
                 Text(provider.caption)
-                    .font(.caption2)
+                    .font(.system(size: metrics.caption))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(1).layoutPriority(-1)
             }
             if let error = provider.error {
                 Text(error)
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.system(size: metrics.summary)).foregroundStyle(.secondary)
                     .lineLimit(2).minimumScaleFactor(0.9)
             } else {
                 ForEach(provider.meters, id: \.self) { meter in
@@ -163,7 +200,7 @@ private struct ProviderBlock: View {
                         meter: meter,
                         style: SeverityStyle(mode: mode, severity: meter.severity,
                                              accent: provider.accent),
-                        showReset: showReset)
+                        showReset: showReset, metrics: metrics)
                 }
             }
         }
@@ -178,6 +215,7 @@ private struct ProviderBlock: View {
 private struct CompactRow: View {
     let provider: Provider
     let mode: WidgetRenderingMode
+    let metrics: Metrics
 
     var body: some View {
         HStack(spacing: 10) {
@@ -188,26 +226,27 @@ private struct CompactRow: View {
                     Ring(meter: worst,
                          style: SeverityStyle(mode: mode, severity: worst.severity,
                                               accent: provider.accent),
-                         diameter: 42, lineWidth: 5)
+                         diameter: metrics.ring, lineWidth: metrics.ringLine)
                 } else {
-                    Circle().stroke(.quaternary, lineWidth: 5).frame(width: 42, height: 42)
+                    Circle().stroke(.quaternary, lineWidth: metrics.ringLine)
+                        .frame(width: metrics.ring, height: metrics.ring)
                 }
             }
-            .frame(width: 42)
+            .frame(width: metrics.ring)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(provider.shortLabel)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: metrics.name, weight: .semibold))
                         .lineLimit(1).minimumScaleFactor(0.8)
                     Spacer(minLength: 4)
                     Text(provider.caption)
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .font(.system(size: metrics.caption)).foregroundStyle(.secondary)
                         .lineLimit(1).layoutPriority(-1)
                 }
                 Text(provider.summaryLine)
-                    .font(.caption2)
+                    .font(.system(size: metrics.summary))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .lineLimit(1).minimumScaleFactor(0.75)
             }
         }
         .opacity(provider.standby ? 0.55 : 1)
@@ -259,7 +298,7 @@ struct AIUsageWidgetView: View {
     @ViewBuilder private var staleBadge: some View {
         if entry.snapshot?.isStale == true {
             Text("stale")
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .background(Capsule().fill(.quaternary))
         }
@@ -271,8 +310,8 @@ struct AIUsageWidgetView: View {
         return VStack(spacing: 0) {
             HStack(spacing: 4) {
                 Text(pick?.0.shortLabel ?? "AI Usage")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.7)
                 staleBadge
             }
             Spacer(minLength: 8)
@@ -280,10 +319,10 @@ struct AIUsageWidgetView: View {
                 Ring(meter: meter,
                      style: SeverityStyle(mode: mode, severity: meter.severity,
                                           accent: provider.accent),
-                     diameter: 68, lineWidth: 8)
+                     diameter: 84, lineWidth: 9)
                 Spacer(minLength: 8)
                 Text("\(provider.name) · \(meter.label)")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 Text("Nothing configured").font(.caption2).foregroundStyle(.secondary)
@@ -296,9 +335,10 @@ struct AIUsageWidgetView: View {
     private var compact: some View {
         let shown = Array(providers.prefix(3))
         let hidden = providers.count - shown.count
-        return VStack(alignment: .leading, spacing: 10) {
+        let metrics = Metrics.rows(shown.count)
+        return VStack(alignment: .leading, spacing: metrics.spacing) {
             ForEach(shown, id: \.self) { provider in
-                CompactRow(provider: provider, mode: mode)
+                CompactRow(provider: provider, mode: mode, metrics: metrics)
             }
             if hidden > 0 || entry.snapshot?.isStale == true {
                 HStack(spacing: 4) {
@@ -310,16 +350,20 @@ struct AIUsageWidgetView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(14)
+        // Without this the stack sizes to its content and the spacers above
+        // and below collapse to nothing, leaving the rows pinned to the top.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(metrics.padding)
     }
 
     private var list: some View {
         let shown = Array(providers.prefix(visibleLimit))
         let hidden = providers.count - shown.count
-        return VStack(alignment: .leading, spacing: 12) {
+        let metrics = Metrics.rows(shown.count)
+        return VStack(alignment: .leading, spacing: metrics.spacing) {
             HStack(spacing: 4) {
                 Text("AI Usage")
-                    .font(.caption2.weight(.semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 staleBadge
                 Spacer(minLength: 0)
@@ -329,11 +373,11 @@ struct AIUsageWidgetView: View {
             }
             ForEach(shown, id: \.self) { provider in
                 ProviderBlock(provider: provider, mode: mode,
-                              showReset: family == .systemLarge)
+                              showReset: family == .systemLarge, metrics: metrics)
             }
             Spacer(minLength: 0)
         }
-        .padding(16)
+        .padding(metrics.padding)
     }
 }
 
