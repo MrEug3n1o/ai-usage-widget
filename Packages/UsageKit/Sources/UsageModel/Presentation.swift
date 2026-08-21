@@ -42,16 +42,10 @@ public extension Provider {
         return account
     }
 
-    /// Trailing caption: what it is, and which tier. "Claude · Max".
-    ///
-    /// A plan of "None" is filtered out here rather than in the collector. The
-    /// contract carries whatever the provider reported — Codex reports a null
-    /// planType, which the Python reference stringifies to the literal "None"
-    /// — and presentation decides not to render that at a user. Fixing it in
-    /// the collector would break parity with cli/usage_monitor.py.
+    /// Trailing caption: what it is, and which tier. "Claude · Max", or just
+    /// "Codex" when the provider reports no plan.
     var caption: String {
-        let tier = (plan.isEmpty || plan == "None") ? "" : plan
-        return tier.isEmpty ? name : "\(name) · \(tier)"
+        plan.isEmpty ? name : "\(name) · \(plan)"
     }
 
     /// One line describing the meters, or the best available explanation when

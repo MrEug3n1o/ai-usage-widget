@@ -65,16 +65,18 @@ enum Codex {
         }
     }
 
-    /// Reproduces `str(raw.get("planType", raw.get("plan_type", "")))`.
+    /// The plan tier, or "" when the provider did not report one.
     ///
-    /// KNOWN QUIRK, kept for parity: when the key is present but JSON null,
-    /// Python yields the literal string "None" and the UI shows a plan called
-    /// "None". The Rust collector yielded "" instead. Python is the reference,
-    /// so this matches Python — but it is a bug in both, and fixing it belongs
-    /// in cli/usage_monitor.py first. See PLAN.md.
+    /// Codex commonly sends planType as an explicit null. Both this and the
+    /// reference used to stringify that to the literal "None" and put it on
+    /// screen as the plan; treating null as absent is the fix, applied to
+    /// cli/usage_monitor.py at the same time so the two stay in step.
     static func planName(_ limits: [String: Any]) -> String {
-        if let value = limits["planType"] { return pythonStr(value) }
-        if let value = limits["plan_type"] { return pythonStr(value) }
+        for key in ["planType", "plan_type"] {
+            guard let value = limits[key], !(value is NSNull) else { continue }
+            let text = pythonStr(value)
+            if !text.isEmpty { return text }
+        }
         return ""
     }
 

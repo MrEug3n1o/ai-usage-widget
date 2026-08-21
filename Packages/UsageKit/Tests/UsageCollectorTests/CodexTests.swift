@@ -11,12 +11,13 @@ final class CodexTests: XCTestCase {
         XCTAssertEqual(Codex.meterLabel(minutes: nil, fallback: "primary"), "primary")
     }
 
-    /// Documented quirk: Python's `str(None)` yields the literal "None" and the
-    /// UI shows a plan called "None". Reproduced deliberately for parity — the
-    /// fix belongs in cli/usage_monitor.py first. If this test starts failing
-    /// because the reference was fixed, delete it rather than "restoring" it.
-    func testNullPlanTypeBecomesTheStringNone() {
-        XCTAssertEqual(Codex.planName(["planType": NSNull()]), "None")
+    /// Codex commonly sends planType as an explicit null. Both this and the
+    /// reference used to stringify that to "None" and show it as the plan.
+    func testNullPlanTypeIsTreatedAsAbsent() {
+        XCTAssertEqual(Codex.planName(["planType": NSNull()]), "")
+        // Falls through to the snake_case spelling rather than stopping at the
+        // null it found first.
+        XCTAssertEqual(Codex.planName(["planType": NSNull(), "plan_type": "pro"]), "pro")
     }
 
     func testPlanNamePrefersCamelCaseThenSnakeThenEmpty() {
