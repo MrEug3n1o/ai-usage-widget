@@ -226,6 +226,22 @@ or if one-account-per-widget is wanted for legibility rather than capacity.
   so only the unconfigured branch has ever run.
 - **Small and large have never been rendered.** Only medium has been placed, so
   those `Metrics` rows are untested against real pixels.
+- **The app icon does not show in the widget gallery.** The asset itself is
+  fine: a valid multi-representation AppIcon.icns sits in Contents/Resources
+  and Info.plist points at it. Restarting Dock and chronod did not help, and
+  neither did clearing the duplicate Launch Services registrations (the
+  DerivedData copy of the app was registered alongside /Applications, and the
+  Phase 0 spike extension was still registered from its build dir — both now
+  unregistered, which was worth doing regardless).
+
+  Untried, cheapest first: give the widget extension its own
+  Assets.xcassets with an AppIcon, since some macOS versions look there rather
+  than at the containing app; check whether the macOS 26 gallery shows a
+  rendered preview rather than an app icon at all, in which case there is
+  nothing to fix; and last, the icon services cache
+  (`/Library/Caches/com.apple.iconservices.store`), which needs sudo and is
+  the least likely to be the cause.
+
 - **The poll interval is 60s**, inherited from the Tauri widget's `INTERVAL_MS`.
   With two Claude accounts that is four API calls a minute, indefinitely, for a
   widget WidgetKit only refreshes every few minutes. Running the parity gate
