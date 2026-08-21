@@ -18,5 +18,6 @@ let package = Package(
         .target(name: "UsageModel"),
         .target(name: "UsageCollector", dependencies: ["UsageModel"]),
         .testTarget(name: "UsageModelTests", dependencies: ["UsageModel"]),
+        .testTarget(name: "UsageCollectorTests", dependencies: ["UsageCollector"]),
     ]
 )

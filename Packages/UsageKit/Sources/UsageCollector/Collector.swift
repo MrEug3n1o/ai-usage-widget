@@ -13,13 +13,23 @@ public enum Collector {
     /// Environments whose configs are this close apart are both taken as in use.
     static let claudeConfigTieSeconds: TimeInterval = 600
 
-    public static func collectAll() -> [Provider] {
-        var providers: [Provider] = []
-        for dir in claudeProfiles() {
-            providers.append(Claude.collect(profileDir: dir))
+    public static func collectAll() async -> [Provider] {
+        let profiles = claudeProfiles()
+
+        // Concurrent, but the output order is fixed: Claude profiles in
+        // directory order, then Codex, then Cursor — same as the Python
+        // collector, so the parity diff compares like with like.
+        var providers = await withTaskGroup(of: (Int, Provider).self) { group in
+            for (index, dir) in profiles.enumerated() {
+                group.addTask { (index, await Claude.collect(profileDir: dir)) }
+            }
+            group.addTask { (profiles.count, await Codex.collect()) }
+            group.addTask { (profiles.count + 1, await Cursor.collect()) }
+
+            var collected: [(Int, Provider)] = []
+            for await result in group { collected.append(result) }
+            return collected.sorted { $0.0 < $1.0 }.map(\.1)
         }
-        providers.append(Codex.collect())
-        providers.append(Cursor.collect())
         markStandby(&providers)
         return providers
     }

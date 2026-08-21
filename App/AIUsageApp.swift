@@ -16,7 +16,17 @@ struct AIUsageApp: App {
         // Mirrors the Tauri app's --probe: print the collection and exit, so
         // parity against cli/usage_monitor.py is checkable from a terminal.
         if CommandLine.arguments.contains("--probe") {
-            let providers = Collector.collectAll()
+            // Bridge async to sync: this path is a CLI, it prints and exits
+            // before any UI exists, so blocking the main thread is the point.
+            // Task.detached, NOT Task: App.init is @MainActor, so a plain Task
+            // inherits the main actor and deadlocks against the wait() below.
+            let done = DispatchSemaphore(value: 0)
+            nonisolated(unsafe) var providers: [Provider] = []
+            Task.detached {
+                providers = await Collector.collectAll()
+                done.signal()
+            }
+            done.wait()
             let data = try! Snapshot.encoder.encode(providers)
             print(String(decoding: data, as: UTF8.self))
             exit(0)
@@ -40,9 +50,11 @@ struct AIUsageApp: App {
     }
 
     private func refresh() {
-        let next = Snapshot(providers: Collector.collectAll())
-        snapshot = next
-        try? Self.store.save(next)
-        WidgetCenter.shared.reloadAllTimelines()
+        Task {
+            let next = Snapshot(providers: await Collector.collectAll())
+            snapshot = next
+            try? Self.store.save(next)
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 }
