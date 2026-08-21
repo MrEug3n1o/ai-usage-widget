@@ -92,21 +92,3 @@ public extension Meter {
         return "\(label) \(used)/\(limit)"
     }
 }
-
-public extension Provider {
-    /// The meter closest to running out. Drives the menu bar percentage, which
-    /// is a warning light: it should track whatever is about to bite, not a
-    /// fixed window.
-    var worstMeter: Meter? {
-        meters.filter { $0.percent != nil }.max { ($0.percent ?? 0) < ($1.percent ?? 0) }
-    }
-}
-
-public extension Array where Element == Provider {
-    /// The single most urgent meter across every configured account.
-    var headline: (provider: Provider, meter: Meter)? {
-        compactMap { p in p.worstMeter.map { (provider: p, meter: $0) } }
-            .filter { !$0.provider.isUnconfigured }
-            .max { ($0.meter.percent ?? 0) < ($1.meter.percent ?? 0) }
-    }
-}

@@ -17,11 +17,6 @@ final class UsageStore: ObservableObject {
     private let alerts = AlertCenter()
     private var loop: Task<Void, Never>?
 
-    /// The most urgent meter across every configured account, for the menu bar.
-    var headline: (provider: Provider, meter: Meter)? {
-        snapshot?.providers.headline
-    }
-
     init() {
         // Show the last reading immediately rather than an empty panel while
         // the first collection runs.

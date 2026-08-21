@@ -18,7 +18,7 @@ struct AIUsageApp: App {
         MenuBarExtra {
             PanelView(store: store, openAccounts: { openWindow(id: "accounts") })
         } label: {
-            MenuBarLabel(headline: store.headline)
+            Image(systemName: "gauge.with.dots.needle.50percent")
         }
         // .window, not .menu: the panel is a real view with bars and buttons,
         // not a list of menu items.
@@ -29,22 +29,6 @@ struct AIUsageApp: App {
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
-    }
-}
-
-/// Icon plus the most urgent percentage, so the number is readable without
-/// opening anything — the main thing the Tauri build could not do.
-private struct MenuBarLabel: View {
-    let headline: (provider: Provider, meter: Meter)?
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "gauge.with.dots.needle.50percent")
-            if let percent = headline?.meter.percent {
-                Text("\(Int(percent.rounded()))%")
-                    .font(.system(size: 12, weight: .medium)).monospacedDigit()
-            }
-        }
     }
 }
 
