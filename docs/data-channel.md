@@ -37,10 +37,10 @@ anywhere explaining why.
 An unsandboxed host embedding a sandboxed extension is fine — signature verifies, extension
 registers. This matters because our host cannot be sandboxed.
 
-### 3. App Groups work on a free personal team
+### 3. App Groups work on a free personal team — but only team-ID prefixed
 
-Counter to the usual claim. The Xcode-managed profile is a `LocalProvision` and does **not** list
-`com.apple.security.application-groups`:
+Counter to the usual claim, the free team is not the obstacle. The Xcode-managed profile is a
+`LocalProvision` and does **not** list `com.apple.security.application-groups`:
 
 ```
 "com.apple.application-identifier" => "VG87LBRMTR.dev.erickmenezes.aiusage.spike.widget"
@@ -48,20 +48,24 @@ Counter to the usual claim. The Xcode-managed profile is a `LocalProvision` and 
 "keychain-access-groups" => ["VG87LBRMTR.*"]
 ```
 
-But macOS validates the entitlement from the *signature*, not the profile. `containermanagerd`
-provisioned a real managed container anyway:
+macOS validates the entitlement from the *signature* instead, so the group still works. The group
+**id** is what matters:
 
-```
-~/Library/Group Containers/group.dev.erickmenezes.aiusage/
-  .com.apple.containermanagerd.metadata.plist   <- system-managed, not a plain mkdir
-  Library/
-  spike-C.json                                   <- written by the unsandboxed host
-```
+| Group id | Sandboxed extension read |
+|---|---|
+| `group.dev.erickmenezes.aiusage` | ✗ "you don't have permission to view it" |
+| `VG87LBRMTR.group.dev.erickmenezes.aiusage` | ✓ |
 
-`../disk-usage-widget` independently confirms this: same team, sandboxed app, working App Group.
+This is the documented rule for macOS apps signed outside the Mac App Store: the group id must begin
+with the team identifier. Do not trust the container's mere existence as evidence — with the
+unprefixed id `containermanagerd` still created a fully managed container, the unsandboxed host still
+wrote into it, and only the *sandboxed reader* was denied. The failure is invisible from the host
+side.
 
-Note the group id has **no team-ID prefix** (`group.dev.erickmenezes.aiusage`), matching the
-convention the disk widget uses.
+(`../disk-usage-widget` uses an unprefixed `group.com.erickmenezes.DiskUsage` and does work — its
+`lowSpace.*` keys really are in the group container, not fallen back to `.standard`. Its host app is
+sandboxed, which ours cannot be. Prefixed is the form that works in *our* configuration and the form
+Apple documents, so use it.)
 
 ### 4. Requesting App Groups forces a provisioning profile
 
@@ -69,24 +73,34 @@ With no entitlements the build signs with no profile at all. Adding the App Grou
 until `-allowProvisioningUpdates` is passed, after which Xcode generates a local profile. That
 profile carries **`TimeToLive => 7`** (days).
 
-Whether macOS refuses to launch the app once the embedded profile expires is **not yet verified** —
-watch for it. If it bites, the mitigation is either a rebuild (one command) or switching to the
-container channel below, which needs no entitlement and therefore no profile at all.
+Whether macOS refuses to launch once the embedded profile expires is **not verified** — watch for
+it. Mitigation is a rebuild (one command), or Channel B below, which needs no entitlement and so no
+profile at all.
+
+## Results
+
+Probed from the running extension (`log show --predicate 'subsystem == "dev.erickmenezes.aiusage.spike"'`
+— note `log` is a zsh builtin, use `/usr/bin/log`):
+
+| Channel | Host write | Sandboxed widget read |
+|---|---|---|
+| **A** — widget reads `~/.config/ai-usage-monitor` directly | n/a | ✗ denied, and an unsandboxed widget never registers at all |
+| **B** — host writes into `~/Library/Containers/<widget-id>/Data/` | ✓ | ✓ |
+| **C** — App Group, team-ID prefixed | ✓ | ✓ |
 
 ## Decision
 
-**Channel C — App Group `group.dev.erickmenezes.aiusage`.** Host writes `snapshot.json` there;
-sandboxed widget reads it.
+**Channel C — App Group `VG87LBRMTR.group.<bundle-prefix>`.** Host writes `snapshot.json` there;
+the sandboxed widget reads it. Supported, documented, and survives the host being unsandboxed.
 
-Keep the `SnapshotStore` protocol as planned. The fallback if profile expiry proves painful is
-**Channel B**: the host writes into `~/Library/Containers/<widget-bundle-id>/Data/`, which the
-sandboxed extension reads as its own `NSHomeDirectory()`. No entitlement, no profile, no expiry —
-at the cost of writing into a bundle container we do not own.
+Keep the `SnapshotStore` protocol as planned. If profile expiry proves painful, **Channel B** is a
+verified fallback: no entitlement, no profile, no expiry — at the cost of writing into a bundle
+container we do not own.
 
 ## Configuration that follows
 
-- Host: unsandboxed, hardened runtime, `com.apple.security.application-groups`.
-- Widget: `com.apple.security.app-sandbox` **plus** the same group.
+- Host: unsandboxed, hardened runtime, `com.apple.security.application-groups` with the prefixed id.
+- Widget: `com.apple.security.app-sandbox` **plus** the same prefixed group.
 - `GENERATE_INFOPLIST_FILE: NO` on the extension target — with `YES`, Xcode synthesizes its own
   Info.plist and drops the `NSExtension` key, and the widget vanishes from the gallery with no error
   (learned in `../disk-usage-widget/project.yml`).
@@ -95,8 +109,6 @@ at the cost of writing into a bundle container we do not own.
   run before code-signing, so the copied app is unsigned and launchd rejects it with RBS error 163
   (also from `../disk-usage-widget`).
 
-## Open item
+## Status
 
-Widget-side read of both channels is not yet confirmed — it needs the extension to actually run,
-which means adding the Spike widget from the gallery once. The spike widget renders a ✓/✗ per
-channel for exactly this.
+Resolved. Both surviving channels verified end to end against a running extension.

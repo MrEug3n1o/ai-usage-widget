@@ -6,7 +6,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.dev.erickmenezes.aiusage</string>
+		<string>VG87LBRMTR.group.dev.erickmenezes.aiusage</string>
 	</array>
 </dict>
 </plist>

@@ -14,7 +14,7 @@ enum Channel: String, CaseIterable {
 }
 
 let widgetBundleID = "dev.erickmenezes.aiusage.spike.widget"
-let appGroupID = "group.dev.erickmenezes.aiusage"
+let appGroupID = "VG87LBRMTR.group.dev.erickmenezes.aiusage"
 
 /// The user's real home, bypassing the sandbox redirect that `NSHomeDirectory`
 /// applies inside a container. Comparing the two is how we detect sandboxing.

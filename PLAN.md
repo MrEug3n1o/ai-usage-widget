@@ -56,7 +56,7 @@ Worth being clear about what the $99/yr actually buys, because it is less than i
 Phase 0 settles the channel empirically. Everything downstream is written against a `SnapshotStore`
 protocol, so swapping channels is a single-file change.
 
-## Phase 0 — Spike the data channel
+## Phase 0 — Spike the data channel — **RESOLVED**, see docs/data-channel.md
 
 Do this first, throw the code away. Minimal Xcode project: host app + widget extension, nothing
 else. Determine, in order:
