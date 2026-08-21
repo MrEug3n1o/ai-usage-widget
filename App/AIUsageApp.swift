@@ -2,8 +2,22 @@ import SwiftUI
 import UsageModel
 import UsageCollector
 
+/// Menu bar only, no Dock icon — done here rather than with LSUIElement in the
+/// Info.plist, because Launch Services reads that key statically and an agent
+/// app's icon does not reach the widget gallery.
+///
+/// It has to be a delegate callback: NSApp does not exist yet inside App.init,
+/// where touching it crashes on an implicitly unwrapped nil before the app can
+/// draw anything.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+    }
+}
+
 @main
 struct AIUsageApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var store = UsageStore()
     @Environment(\.openWindow) private var openWindow
 
@@ -11,12 +25,6 @@ struct AIUsageApp: App {
         // Mirrors the Tauri app's --probe: print the collection and exit, so
         // parity against cli/usage_monitor.py is checkable from a terminal.
         if CommandLine.arguments.contains("--probe") { Probe.runAndExit() }
-
-        // Menu bar only, no Dock icon — set here rather than with LSUIElement
-        // in the Info.plist. Launch Services reads that key statically and an
-        // agent app's icon does not reach the widget gallery; setting the
-        // policy at runtime hides the Dock icon just the same.
-        NSApp.setActivationPolicy(.accessory)
 
         LoginItem.enableOnFirstRun()
     }
