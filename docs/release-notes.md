@@ -1,15 +1,14 @@
-Second release. Small, and all of it in the accounts panel.
+Third release. Appearance, and a word about Codex.
 
-**What changed since v0.1.0**
+**What changed since v0.1.1**
 
-- The accounts panel now has a **Codex** section. Codex was always collected —
-  the app reads the Codex CLI's own ChatGPT login — but the panel said nothing
-  about it, so it looked as though Codex were unsupported next to the Claude
-  and Cursor sections that do take input. It now reports whether the CLI is
-  installed and which account it holds, and says there is nothing to add.
-- Opening the accounts window no longer puts the keyboard focus in the Cursor
-  secret field. AppKit hands the first responder to the first text field it
-  finds; a window for listing accounts opened with a password box active.
+- The menu bar panel no longer reads pale next to real menu bar dropdowns.
+  MenuBarExtra's own window already paints the menu material, and the panel
+  set a second one on top of it; two materials composite lighter than one.
+  Removing it leaves the panel with the background macOS gives it.
+- The provider cards lost their tint. It sat a shade darker than the panel
+  behind them, which reads as a seam rather than as grouping — the spacing
+  between cards already groups them.
 
 **Installing.** Open the `.dmg` and drag AI Usage to Applications. The build is
 ad-hoc signed rather than notarized, so macOS will refuse it on first launch:
@@ -25,7 +24,8 @@ couple of minutes and signs it locally with your own Apple ID.
 - Menu bar panel with session and weekly meters, renewal countdowns, and the
   standby marker showing which account is actually burning quota
 - Widgets in all three sizes
-- Account registration from the Claude Code logins already on the machine
+- Account registration from the Claude Code logins already on the machine, and
+  a Codex section saying it needs none — that comes from the Codex CLI's login
 - Notifications as a limit crosses each configured threshold
 
 **Known issue.** The app icon does not appear in the widget gallery. Cosmetic;
