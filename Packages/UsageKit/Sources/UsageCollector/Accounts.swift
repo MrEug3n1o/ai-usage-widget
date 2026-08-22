@@ -16,8 +16,21 @@ public enum Accounts {
         public let email: String?
     }
 
+    /// What the Codex CLI on this Mac looks like. Codex needs no registration
+    /// here — the collector talks to the CLI's own ChatGPT login — but the
+    /// panel still has to say so, or its absence reads as an omission.
+    public struct CodexStatus: Sendable {
+        /// A `codex` executable was found on PATH or in a known install dir.
+        public let installed: Bool
+        /// `~/.codex/auth.json` exists, so the CLI is logged in.
+        public let signedIn: Bool
+        /// The account that login names, when its token carries one.
+        public let email: String?
+    }
+
     public struct Detection: Sendable {
         public let claude: [Candidate]
+        public let codex: CodexStatus
         public let cursorConfigured: Bool
     }
 
@@ -37,7 +50,21 @@ public enum Accounts {
         let services = keychainServices()
         return Detection(
             claude: keychainCandidates(services) + fileCandidates(excluding: services),
+            codex: codexStatus(),
             cursorConfigured: FileManager.default.fileExists(atPath: Config.cursorConfig.path))
+    }
+
+    /// Metadata only, like the Claude detection: whether the CLI is there and
+    /// which account it holds. The email comes from the id_token claims the
+    /// collector already reads; no secret leaves this function.
+    static func codexStatus() -> CodexStatus {
+        let fm = FileManager.default
+        let auth = Config.home.appendingPathComponent(".codex/auth.json")
+        let email = Codex.email()
+        return CodexStatus(
+            installed: fm.isExecutableFile(atPath: Codex.findCodex().path),
+            signedIn: fm.fileExists(atPath: auth.path),
+            email: email.isEmpty ? nil : email)
     }
 
     /// Keychain services named `Claude Code-credentials[-<hash>]`, one per

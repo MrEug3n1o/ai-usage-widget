@@ -3,9 +3,6 @@
 Native macOS menu bar app and WidgetKit widget for AI coding-tool usage limits (Claude, Codex,
 Cursor).
 
-> **Status: not implemented yet.** This repo currently holds the migration plan only —
-> see [PLAN.md](PLAN.md).
-
 ## What this is
 
 A Swift rewrite of the Tauri widget in
@@ -65,7 +62,10 @@ signs it locally with your own Apple ID.
 Then:
 
 - The app runs in the menu bar with no Dock icon. Click the gauge icon for the
-  panel, and ⚙ inside it to register accounts.
+  panel, and ⚙ inside it to register accounts. Claude logins already on the Mac
+  are registered there with one click, and Cursor takes a team admin key;
+  **Codex needs nothing** — it is read from the Codex CLI's own ChatGPT login,
+  and the panel says so.
 - For the widget: **Edit Widgets** (right-click the desktop, or click the clock
   to open Notification Center) → search **AI Usage** → pick a size.
 

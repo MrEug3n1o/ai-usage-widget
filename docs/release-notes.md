@@ -1,8 +1,15 @@
-First release of the native macOS rewrite.
+Second release. Small, and all of it in the accounts panel.
 
-A menu bar app and a WidgetKit widget showing how much of your Claude, Codex
-and Cursor usage limits are left, with the collector rewritten in Swift from
-the Python one in [ai-usage-monitor](https://github.com/felipesja/ai-usage-monitor).
+**What changed since v0.1.0**
+
+- The accounts panel now has a **Codex** section. Codex was always collected —
+  the app reads the Codex CLI's own ChatGPT login — but the panel said nothing
+  about it, so it looked as though Codex were unsupported next to the Claude
+  and Cursor sections that do take input. It now reports whether the CLI is
+  installed and which account it holds, and says there is nothing to add.
+- Opening the accounts window no longer puts the keyboard focus in the Cursor
+  secret field. AppKit hands the first responder to the first text field it
+  finds; a window for listing accounts opened with a password box active.
 
 **Installing.** Open the `.dmg` and drag AI Usage to Applications. The build is
 ad-hoc signed rather than notarized, so macOS will refuse it on first launch:

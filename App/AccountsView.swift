@@ -38,9 +38,11 @@ struct AccountsView: View {
         Form {
             claudeSection
             availableSection
+            codexSection
             CursorSection(configured: detection?.cursorConfigured ?? false, onChange: reload)
         }
         .formStyle(.grouped)
+        .background(ClearsInitialFocus())
         .frame(width: 460)
         .frame(minHeight: 400, maxHeight: 700)
         .task { detection = Accounts.detect() }
@@ -123,6 +125,46 @@ struct AccountsView: View {
         }
     }
 
+    /// Codex has no Add button: the collector reads the Codex CLI's own
+    /// ChatGPT login. Without this section the panel looks as if Codex were
+    /// unsupported, so it states the arrangement and reports what it found.
+    private var codexSection: some View {
+        let codex = detection?.codex
+
+        return Section {
+            LabeledContent("Status") {
+                Text(codexStatusText(codex)).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Codex")
+        } footer: {
+            Text(codexFooter(codex))
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func codexStatusText(_ codex: Accounts.CodexStatus?) -> String {
+        guard let codex else { return "Checking…" }
+        if !codex.installed { return "Codex CLI not found" }
+        guard codex.signedIn else { return "Not signed in" }
+        return codex.email.map { "Signed in as \($0)" } ?? "Signed in"
+    }
+
+    private func codexFooter(_ codex: Accounts.CodexStatus?) -> String {
+        guard let codex else { return "" }
+        if !codex.installed {
+            return "Codex usage is read from the Codex CLI's own ChatGPT login. "
+                + "Install the CLI and run `codex login`; nothing needs to be added here."
+        }
+        if !codex.signedIn {
+            return "Codex usage is read from the Codex CLI's own ChatGPT login. "
+                + "Run `codex login` in a terminal; nothing needs to be added here."
+        }
+        return "Codex usage is read automatically from the Codex CLI's ChatGPT login, "
+            + "so there is nothing to add here. Run `codex login` in a terminal to switch account."
+    }
+
     private func add(_ candidate: Accounts.Candidate) {
         busy = candidate.id
         message = nil
@@ -153,6 +195,26 @@ struct AccountsView: View {
     private func reload() {
         detection = Accounts.detect()
         Task { await store.refresh() }
+    }
+}
+
+/// Opening the window handed the keyboard focus to the Cursor secret field:
+/// AppKit makes the first text field it finds the first responder, so a window
+/// about listing accounts opened with a password box already active. Dropping
+/// the first responder once the window is up starts it with nothing focused —
+/// Tab and clicking still reach every control.
+private struct ClearsInitialFocus: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { Clearing() }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class Clearing: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            // Asynchronously: the form's fields are installed after this call,
+            // and whichever one AppKit picks would otherwise win the race.
+            DispatchQueue.main.async { window.makeFirstResponder(nil) }
+        }
     }
 }
 

@@ -4,9 +4,9 @@ Guidance for Claude Code (claude.ai/code) working in this repository.
 
 ## Status
 
-Nothing is implemented yet. **Read [PLAN.md](PLAN.md) first** — it holds the full migration plan,
-the source files to port from, and the phase order. Phase 0 (spiking the host→widget data channel)
-gates the rest of the design and must be settled before porting begins.
+Shipped: the app, the widget extension and the Swift collector are implemented and released as an
+unsigned DMG. [PLAN.md](PLAN.md) is now history plus the open items — read it for the design
+rationale and for what is still unresolved (the widget gallery icon), not as a to-do list.
 
 ## Language
 
