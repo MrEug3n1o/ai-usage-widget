@@ -22,10 +22,11 @@ struct PanelView: View {
             footer
         }
         .frame(width: 340)
-        // The panel sits over whatever happens to be behind it, and a thin
-        // material lets high-contrast text — a terminal, usually — read
-        // straight through the numbers. Thick enough to stay legible.
-        .background(.ultraThickMaterial)
+        // Deliberately no background. MenuBarExtra's own window already paints
+        // the menu material, so anything set here stacks a SECOND material on
+        // top of it and the panel reads pale next to real dropdowns — which is
+        // what `.ultraThickMaterial` did here for two releases. Verified by
+        // removing it: the panel still has a blurred background, the system's.
     }
 
     @ViewBuilder private var content: some View {
@@ -149,8 +150,9 @@ private struct ProviderCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .fill(.quaternary.opacity(0.35)))
+        // No fill: a tinted card sat a shade darker than the panel behind it,
+        // which is a seam rather than a grouping — the spacing between cards
+        // already separates them.
         .opacity(provider.standby ? 0.62 : 1)
     }
 }
