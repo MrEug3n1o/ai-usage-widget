@@ -100,6 +100,24 @@ final class ExpiryTests: XCTestCase {
         XCTAssertTrue(Claude.expiring([:]))
         XCTAssertTrue(Claude.expiring(["claudeAiOauth": [:]]))
     }
+
+    /// The refresh window does not apply to `expired`. A mirrored profile uses
+    /// this one so it does not spend a Keychain password prompt two minutes
+    /// before it has to.
+    func testTokenInsideTheRefreshWindowIsNotYetExpired() {
+        XCTAssertFalse(Claude.expired(credential(expiresInMS: 60_000)))
+        XCTAssertTrue(Claude.expiring(credential(expiresInMS: 60_000)))
+    }
+
+    func testAlreadyExpiredIsExpired() {
+        XCTAssertTrue(Claude.expired(credential(expiresInMS: -1)))
+    }
+
+    /// Same as `expiring`: a malformed credential is never treated as valid.
+    func testMissingExpiryIsExpired() {
+        XCTAssertTrue(Claude.expired([:]))
+        XCTAssertTrue(Claude.expired(["claudeAiOauth": [:]]))
+    }
 }
 
 final class ClaudeSourceTests: XCTestCase {
