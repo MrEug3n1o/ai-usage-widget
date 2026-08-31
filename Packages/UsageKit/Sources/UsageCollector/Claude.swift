@@ -101,6 +101,14 @@ enum Claude {
         (data.dict("claudeAiOauth")?.number("expiresAt") ?? 0) <= nowMS() + refreshWindowMS
     }
 
+    /// True when the access token is gone or already dead. Stricter than
+    /// `expiring`: no refresh window, because for a mirrored profile the act of
+    /// looking at its source costs a macOS password prompt, and spending one
+    /// two minutes early buys nothing.
+    static func expired(_ data: [String: Any]) -> Bool {
+        (data.dict("claudeAiOauth")?.number("expiresAt") ?? 0) <= nowMS()
+    }
+
     /// Brings the profile's cached credential up to date without ever rotating
     /// a token the Claude Code CLI owns.
     ///
@@ -120,8 +128,12 @@ enum Claude {
     static func ensureFresh(
         profileDir: URL, path: URL, data: [String: Any]
     ) async throws -> [String: Any] {
-        guard expiring(data) else { return data }
-        guard ClaudeSource.profileSource(profileDir) == nil else {
+        // A mirror waits for the token to actually die before it looks at its
+        // source; a profile that owns its login refreshes inside the window,
+        // where the cost is one silent HTTP call rather than a password prompt.
+        let mirrored = ClaudeSource.profileSource(profileDir) != nil
+        guard mirrored ? expired(data) : expiring(data) else { return data }
+        guard !mirrored else {
             return try await adopt(profileDir: profileDir, path: path)
         }
         do {
