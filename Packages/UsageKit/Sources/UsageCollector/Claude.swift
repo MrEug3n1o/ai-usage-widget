@@ -147,7 +147,7 @@ enum Claude {
         guard let fresh = ClaudeSource.credential(for: profileDir) else {
             throw SimpleError(
                 "could not read the Claude Code session — allow Keychain access, "
-                + "or add the account again")
+                + "or register this account again")
         }
         // Worth keeping even when it is expired: it carries the CLI's live
         // refresh token, so our copy stops drifting from the login it mirrors.
