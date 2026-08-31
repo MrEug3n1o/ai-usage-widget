@@ -143,3 +143,50 @@ final class ClaudeSourceTests: XCTestCase {
         XCTAssertThrowsError(try ClaudeSource.read("keychain:Some Other Service"))
     }
 }
+
+final class AdoptionGateTests: XCTestCase {
+    /// The first look at a source is always allowed; a second look at the same
+    /// version is not. That is what keeps a profile waiting on the CLI from
+    /// re-reading the Keychain — and re-prompting — once a minute.
+    func testSameVersionIsReadOnlyOnce() async {
+        let gate = AdoptionGate()
+        var read = await gate.shouldRead(profile: "/p", version: "1")
+        XCTAssertTrue(read)
+        read = await gate.shouldRead(profile: "/p", version: "1")
+        XCTAssertFalse(read)
+    }
+
+    /// A CLI refresh bumps the source's modification date, so the next poll
+    /// picks the new token up.
+    func testANewVersionIsReadAgain() async {
+        let gate = AdoptionGate()
+        _ = await gate.shouldRead(profile: "/p", version: "1")
+        let read = await gate.shouldRead(profile: "/p", version: "2")
+        XCTAssertTrue(read)
+    }
+
+    /// A source we cannot even stat is one version, not a fresh one each time.
+    func testUnknownVersionIsStillOnlyReadOnce() async {
+        let gate = AdoptionGate()
+        _ = await gate.shouldRead(profile: "/p", version: nil)
+        let read = await gate.shouldRead(profile: "/p", version: nil)
+        XCTAssertFalse(read)
+    }
+
+    func testProfilesAreGatedIndependently() async {
+        let gate = AdoptionGate()
+        _ = await gate.shouldRead(profile: "/a", version: "1")
+        let read = await gate.shouldRead(profile: "/b", version: "1")
+        XCTAssertTrue(read)
+    }
+
+    /// Relaunching the app is how a denied read is retried; forget() is the
+    /// same reset, without the relaunch.
+    func testForgetAllowsAnotherRead() async {
+        let gate = AdoptionGate()
+        _ = await gate.shouldRead(profile: "/p", version: "1")
+        await gate.forget(profile: "/p")
+        let read = await gate.shouldRead(profile: "/p", version: "1")
+        XCTAssertTrue(read)
+    }
+}

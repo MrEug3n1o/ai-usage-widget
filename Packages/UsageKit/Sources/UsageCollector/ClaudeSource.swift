@@ -133,3 +133,70 @@ enum ClaudeSource {
         return object
     }
 }
+
+extension ClaudeSource {
+    /// A marker for the source's current contents, cheap enough to ask for on
+    /// every poll: the Keychain item's modification date, or the credential
+    /// file's. nil when the source cannot be looked at at all.
+    ///
+    /// The Keychain query is attributes-only and deliberately without
+    /// kSecReturnData — metadata is not the secret, so asking for it never
+    /// raises the permission dialog. Only `readKeychain` does.
+    static func sourceVersion(_ profileDir: URL) -> String? {
+        guard let (id, _) = profileSource(profileDir) else { return nil }
+        if id.hasPrefix("file:") {
+            let path = String(id.dropFirst("file:".count))
+            let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+            guard let date = attributes?[.modificationDate] as? Date else { return nil }
+            return String(date.timeIntervalSince1970)
+        }
+        guard id.hasPrefix("keychain:") else { return nil }
+        let service = String(id.dropFirst("keychain:".count))
+        guard service.hasPrefix(keychainService) else { return nil }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let attributes = item as? [String: Any],
+              let date = attributes[kSecAttrModificationDate as String] as? Date
+        else { return nil }
+        return String(date.timeIntervalSince1970)
+    }
+}
+
+/// Which version of its source each profile has already read this run.
+///
+/// A source-backed profile whose token expired stays expired until the CLI
+/// refreshes it, and the poll loop comes back every minute. Without this the
+/// app would read the source — and, for a Keychain source, ask for the login
+/// password — once a minute for as long as the CLI stays unused. Gating on the
+/// source's version means one read per thing there is to read, and a CLI
+/// refresh bumps the version, so recovery still happens within one poll.
+///
+/// In memory on purpose: relaunching the app is then the way to retry a read
+/// that was denied, rather than editing a state file.
+actor AdoptionGate {
+    static let shared = AdoptionGate()
+    private var seen: [String: String] = [:]
+
+    /// True when this profile's source is worth reading: it has not been read
+    /// this run, or it has changed since. An unreadable version (nil) counts as
+    /// a version of its own — a source we cannot even stat is one whose secret
+    /// we would fail to read too.
+    func shouldRead(profile: String, version: String?) -> Bool {
+        let marker = version ?? "unknown"
+        guard seen[profile] == marker else {
+            seen[profile] = marker
+            return true
+        }
+        return false
+    }
+
+    /// Test seam, and what an explicit re-registration should call.
+    func forget(profile: String) { seen[profile] = nil }
+}

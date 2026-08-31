@@ -101,43 +101,61 @@ enum Claude {
         (data.dict("claudeAiOauth")?.number("expiresAt") ?? 0) <= nowMS() + refreshWindowMS
     }
 
-    /// Brings the profile's cached credential up to date, healing the refresh
-    /// race against the Claude Code CLI.
+    /// Brings the profile's cached credential up to date without ever rotating
+    /// a token the Claude Code CLI owns.
     ///
     /// A profile registered from an existing CLI login is a *copy* of a session
     /// the CLI still owns, and the token endpoint rotates the refresh token on
     /// every use: whichever side refreshes first leaves the other holding a
-    /// token the server has already dropped, and that copy stays dead — the
-    /// account then has to be registered again by hand. The account in daily
-    /// use in the CLI loses this race almost every time.
+    /// token the server has already dropped. We poll every minute and the CLI
+    /// only refreshes when you actually run it, so we win that race nearly
+    /// always — and the symptom lands on the CLI, whose login "expires" for no
+    /// reason the user can see.
     ///
-    /// So the source recorded at registration is the authority. When our copy
-    /// is about to expire we adopt the source's token if it is still valid — no
-    /// refresh, so nothing to race — and only refresh ourselves when the source
-    /// has nothing better. A rejected refresh means the CLI rotated past us,
-    /// and the source's refresh token is the live one to use instead.
+    /// So a source-backed profile never refreshes. It adopts what the CLI
+    /// wrote, and when the CLI's token is expired too it says so and waits.
+    /// Only a profile that owns its own login refreshes. (The Python reference
+    /// in ../ai-usage-monitor still refreshes either way; this is a deliberate
+    /// divergence, not a port gap.)
     static func ensureFresh(
         profileDir: URL, path: URL, data: [String: Any]
     ) async throws -> [String: Any] {
         guard expiring(data) else { return data }
-
-        let fresh = ClaudeSource.credential(for: profileDir)
-        if let fresh, !expiring(fresh) {
-            // Adopt, do not refresh: nothing is rotated, so nothing races.
-            try Config.writeJSON(fresh, to: path)
-            return fresh
+        guard ClaudeSource.profileSource(profileDir) == nil else {
+            return try await adopt(profileDir: profileDir, path: path)
         }
         do {
             return try await refresh(path: path, data: data)
         } catch {
-            if let fresh, let healed = try? await refresh(path: path, data: fresh) {
-                return healed
-            }
             if error.localizedDescription.contains("invalid_grant") {
                 throw SimpleError("session revoked — register this account again")
             }
             throw error
         }
+    }
+
+    /// Takes over whatever token the source holds now. Reads the source at most
+    /// once per version of it: for a Keychain source that read is what raises
+    /// the macOS permission dialog, and a profile left waiting for the CLI is
+    /// re-read on every poll otherwise — a password prompt a minute.
+    static func adopt(profileDir: URL, path: URL) async throws -> [String: Any] {
+        let version = ClaudeSource.sourceVersion(profileDir)
+        guard await AdoptionGate.shared.shouldRead(profile: profileDir.path,
+                                                   version: version) else {
+            throw SimpleError("waiting for Claude Code to refresh this session")
+        }
+        guard let fresh = ClaudeSource.credential(for: profileDir) else {
+            throw SimpleError(
+                "could not read the Claude Code session — allow Keychain access, "
+                + "or register this account again")
+        }
+        // Worth keeping even when it is expired: it carries the CLI's live
+        // refresh token, so our copy stops drifting from the login it mirrors.
+        try Config.writeJSON(fresh, to: path)
+        guard !expiring(fresh) else {
+            throw SimpleError("Claude Code's session has expired — run claude once")
+        }
+        return fresh
     }
 
     /// Refreshes the access token if it expires in under the refresh window,
