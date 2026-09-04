@@ -14,6 +14,8 @@ struct AccountsView: View {
     @State private var detection: Accounts.Detection?
     @State private var busy: String?
     @State private var message: (text: String, isError: Bool)?
+    /// The sign-in waiting for its code to be pasted back.
+    @State private var attempt: ClaudeLogin.Attempt?
 
     /// Registered accounts come from the last reading rather than from
     /// re-identifying each profile, which would mean a network round trip and a
@@ -37,15 +39,24 @@ struct AccountsView: View {
     var body: some View {
         Form {
             claudeSection
+            signInSection
             availableSection
             codexSection
             CursorSection(configured: detection?.cursorConfigured ?? false, onChange: reload)
         }
         .formStyle(.grouped)
-        .background(ClearsInitialFocus())
+        .background(ConfiguresWindow(floats: attempt != nil))
         .frame(width: 460)
         .frame(minHeight: 400, maxHeight: 700)
         .task { detection = Accounts.detect() }
+        .sheet(item: $attempt) { attempt in
+            SignInSheet(attempt: attempt) { result in
+                message = (result.already
+                    ? "Signed in as \(result.email); \(result.profile) now uses its own login."
+                    : "Signed in as \(result.email), added as \(result.profile).", false)
+                reload()
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if let message {
                 HStack(spacing: 6) {
@@ -87,6 +98,35 @@ struct AccountsView: View {
         }
     }
 
+    /// The preferred way in, and above the detected logins on purpose: a
+    /// sign-in costs one browser round trip once, where adopting a CLI login
+    /// costs a password prompt every time its token dies.
+    private var signInSection: some View {
+        Section {
+            HStack(spacing: 10) {
+                Image(systemName: "person.crop.circle.badge.plus")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Sign in to a Claude account")
+                    Text("Opens claude.com in your browser")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Button("Sign in…") { beginLogin() }.disabled(busy != nil)
+            }
+            .padding(.vertical, 2)
+        } header: {
+            Text("Add an account")
+        } footer: {
+            Text("Signing in gives this app a session of its own, which it "
+                 + "refreshes silently. It does not disturb the Claude Code CLI's "
+                 + "own login.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private var availableSection: some View {
         Section {
             if offerable.isEmpty {
@@ -119,9 +159,12 @@ struct AccountsView: View {
             Text("Available on this Mac")
         } footer: {
             // Listing never reads a secret; Add does, and that is what prompts.
-            Text("Adding an account reads its credential, so macOS asks for "
-                 + "permission the first time.")
+            // Say what it costs, since Sign in above avoids it entirely.
+            Text("Adding a login here copies a session the CLI keeps rotating, so "
+                 + "macOS asks for your password when it is read — at registration, "
+                 + "and again each time the copy expires. Sign in above to avoid that.")
                 .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -182,6 +225,19 @@ struct AccountsView: View {
         }
     }
 
+    /// Opens the browser first, then the sheet: the page has to be up before
+    /// there is any code to paste into it.
+    private func beginLogin() {
+        message = nil
+        do {
+            let started = try ClaudeLogin.begin()
+            NSWorkspace.shared.open(started.url)
+            attempt = started
+        } catch {
+            message = (error.localizedDescription, true)
+        }
+    }
+
     private func remove(_ profile: String) {
         do {
             try Accounts.removeClaude(profile)
@@ -198,14 +254,101 @@ struct AccountsView: View {
     }
 }
 
-/// Opening the window handed the keyboard focus to the Cursor secret field:
-/// AppKit makes the first text field it finds the first responder, so a window
-/// about listing accounts opened with a password box already active. Dropping
-/// the first responder once the window is up starts it with nothing focused —
-/// Tab and clicking still reach every control.
-private struct ClearsInitialFocus: NSViewRepresentable {
+/// Where the browser hands the login back. The callback page prints a code
+/// rather than redirecting somewhere this app could listen, so the last step of
+/// the flow is a paste.
+private struct SignInSheet: View {
+    let attempt: ClaudeLogin.Attempt
+    let onFinished: (Accounts.Registered) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var code = ""
+    @State private var busy = false
+    @State private var error: String?
+
+    private var trimmed: String {
+        code.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Sign in to Claude").font(.headline)
+            Text("Approve the sign-in in your browser, then paste the code it "
+                 + "shows you here.")
+                .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            // SecureField for the same reason the Cursor fields use one: this
+            // code buys a session, and the window may be on a shared screen.
+            SecureField("Code", text: $code, prompt: Text("paste the code"))
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { if !trimmed.isEmpty { submit() } }
+            if let error {
+                Text(error).font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Button("Open the page again") { NSWorkspace.shared.open(attempt.url) }
+                    .buttonStyle(.link)
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(busy)
+                Button("Sign in") { submit() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmed.isEmpty || busy)
+                if busy { ProgressView().controlSize(.small) }
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+    }
+
+    private func submit() {
+        busy = true
+        error = nil
+        Task {
+            do {
+                let result = try await Accounts.addClaudeLogin(attempt, pasted: trimmed)
+                code = ""
+                dismiss()
+                onFinished(result)
+            } catch let failure {
+                // Stay open: the code is still on the clipboard, and most
+                // failures here are a mistyped or stale paste.
+                error = failure.localizedDescription
+                busy = false
+            }
+        }
+    }
+}
+
+/// The AppKit reach-arounds this window needs, in one place. There is no
+/// SwiftUI API for either.
+///
+/// Focus: opening the window handed the keyboard focus to the Cursor secret
+/// field — AppKit makes the first text field it finds the first responder, so a
+/// window about listing accounts opened with a password box already active.
+/// Dropping the first responder once the window is up starts it with nothing
+/// focused; Tab and clicking still reach every control.
+///
+/// Staying put: the window has to survive the user leaving for the browser and
+/// then be findable when they come back — see `canHide` and `floats` below.
+private struct ConfiguresWindow: NSViewRepresentable {
+    /// Whether the window should float above other applications' windows.
+    ///
+    /// True only while a sign-in waits for its code. That flow sends the user
+    /// to the browser, and this app has no Dock icon and no ⌘-Tab entry to come
+    /// back through — at normal level the window they must paste into is left
+    /// buried behind the browser with no way back except the menu bar.
+    var floats: Bool
+
     func makeNSView(context: Context) -> NSView { Clearing() }
-    func updateNSView(_ view: NSView, context: Context) {}
+
+    func updateNSView(_ view: NSView, context: Context) {
+        // In updateNSView, not makeNSView: `floats` changes while the window is
+        // already on screen, which is the whole point.
+        view.window?.level = floats ? .floating : .normal
+    }
 
     private final class Clearing: NSView {
         override func viewDidMoveToWindow() {

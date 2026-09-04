@@ -143,7 +143,21 @@ public enum Accounts {
     }
 
     public static func addClaude(_ id: String) async throws -> Registered {
-        let data = try ClaudeSource.read(id)
+        try await register(ClaudeSource.read(id), sourceID: id)
+    }
+
+    /// Registers a session obtained by `ClaudeLogin`, with no source recorded:
+    /// this login is the profile's own, so `Claude.ensureFresh` refreshes it
+    /// here instead of going back to the Keychain for it.
+    public static func addClaudeLogin(
+        _ attempt: ClaudeLogin.Attempt, pasted: String
+    ) async throws -> Registered {
+        try await register(ClaudeLogin.complete(attempt, pasted: pasted), sourceID: nil)
+    }
+
+    /// The shared half of both add paths. `sourceID` nil means the credential
+    /// is the profile's own rather than a copy of a login the CLI still keeps.
+    static func register(_ data: [String: Any], sourceID: String?) async throws -> Registered {
         guard let oauth = data.dict("claudeAiOauth") else {
             throw SimpleError("the source does not contain a Claude OAuth session")
         }
@@ -156,7 +170,7 @@ public enum Accounts {
         let staging = Config.claudeDir.appendingPathComponent(".staging-\(getpid())")
         let staged = staging.appendingPathComponent(".credentials.json")
         try Config.writeJSON(data, to: staged)
-        try writeSource(staging, id: id, email: nil)
+        if let sourceID { try writeSource(staging, id: sourceID, email: nil) }
 
         let identity: (email: String, plan: String)
         do {
@@ -165,20 +179,32 @@ public enum Accounts {
             try? FileManager.default.removeItem(at: staging)
             throw error
         }
-        try writeSource(staging, id: id, email: identity.email)
+        if let sourceID { try writeSource(staging, id: sourceID, email: identity.email) }
 
-        // One profile per account. An existing profile with the same email
-        // wins — its refresh-token lineage keeps working and the staged copy is
-        // dropped — but it does take the source over, so re-adding an account
-        // whose copy went stale re-points it at the login it should mirror.
+        // One profile per account. Which copy survives depends on where this
+        // one came from: an adopted credential defers to the existing profile
+        // (its refresh-token lineage keeps working) and only re-points the
+        // source, while a fresh sign-in replaces it — taking over a mirror with
+        // a session of its own is exactly what signing in is for.
         for dir in profiles() {
             let existing = try? await Claude.identify(
                 dir.appendingPathComponent(".credentials.json"))
             guard let existing,
                   existing.email.caseInsensitiveCompare(identity.email) == .orderedSame
             else { continue }
-            try? FileManager.default.removeItem(at: staging)
-            try? writeSource(dir, id: id, email: identity.email)
+            if let sourceID {
+                try? FileManager.default.removeItem(at: staging)
+                try? writeSource(dir, id: sourceID, email: identity.email)
+            } else {
+                try Config.writeJSON(
+                    try Config.readJSON(staged),
+                    to: dir.appendingPathComponent(".credentials.json"))
+                try? FileManager.default.removeItem(
+                    at: dir.appendingPathComponent(ClaudeSource.sourceFile))
+                try? FileManager.default.removeItem(at: staging)
+                // The gate remembers a source this profile no longer has.
+                await AdoptionGate.shared.forget(profile: dir.path)
+            }
             return Registered(profile: dir.lastPathComponent, email: identity.email,
                               plan: identity.plan, already: true)
         }
