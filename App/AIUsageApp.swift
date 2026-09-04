@@ -31,7 +31,14 @@ struct AIUsageApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            PanelView(store: store, openAccounts: { openWindow(id: "accounts") })
+            PanelView(store: store, openAccounts: {
+                openWindow(id: "accounts")
+                // An accessory app is never made active by opening a window, so
+                // without this the window arrives behind whatever is frontmost —
+                // and with no Dock icon or ⌘-Tab entry there is nothing to click
+                // to reach it.
+                NSApp.activate()
+            })
         } label: {
             Image(systemName: "gauge.with.dots.needle.50percent")
         }

@@ -211,6 +211,13 @@ private struct ClearsInitialFocus: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window else { return }
+
+            // An accessory app is hidden wholesale when it resigns active, and
+            // that takes every hideable window with it — so clicking any other
+            // app made this window vanish rather than fall behind. Not
+            // hidesOnDeactivate, which is already false here.
+            window.canHide = false
+
             // Asynchronously: the form's fields are installed after this call,
             // and whichever one AppKit picks would otherwise win the race.
             DispatchQueue.main.async { window.makeFirstResponder(nil) }
