@@ -16,11 +16,13 @@ final class UsageStore: ObservableObject {
     private let store = DualSnapshotStore()
     private let alerts = AlertCenter()
     private var loop: Task<Void, Never>?
+    private var snapshotAccessFailed = false
 
     init() {
         // Show the last reading immediately rather than an empty panel while
         // the first collection runs.
-        snapshot = try? store.load()
+        // Do not probe another application's container on startup. Collection
+        // fills the panel; publishing below is the only cross-container access.
         alerts.loadThresholds()
         start()
     }
@@ -43,11 +45,14 @@ final class UsageStore: ObservableObject {
         let next = Snapshot(providers: await Collector.collectAll())
         snapshot = next
         alerts.check(next.providers)
+        guard !snapshotAccessFailed else { return }
         do {
             try store.save(next)
             // The host pushes; the widget's own timeline is only a fallback.
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
+            // A denied container request must not be retried by every poll.
+            snapshotAccessFailed = true
             NSLog("snapshot save failed: \(error.localizedDescription)")
         }
     }

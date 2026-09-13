@@ -4,6 +4,9 @@
 # location, never from DerivedData.
 set -euo pipefail
 
+# Packaging must not replace a running application or change its identity.
+[ "${CONFIGURATION:-}" = "Release" ] && exit 0
+
 SRC="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}"
 DEST="/Applications/${WRAPPER_NAME}"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"

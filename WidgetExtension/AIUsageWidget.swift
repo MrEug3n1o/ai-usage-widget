@@ -16,7 +16,7 @@ struct UsageProvider: TimelineProvider {
         Entry(date: date, snapshot: try? store.load())
     }
 
-    func placeholder(in context: Context) -> Entry { read() }
+    func placeholder(in context: Context) -> Entry { Entry(date: .now, snapshot: nil) }
 
     func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
         completion(read())
@@ -142,7 +142,7 @@ struct AIUsageWidgetView: View {
 
     private var status: String {
         guard let snapshot = entry.snapshot else { return "Waiting for data" }
-        return snapshot.isStale ? "Data may be stale" : "Usage used"
+        return snapshot.isStale ? "Data may be stale" : "Used"
     }
 
     var body: some View {
@@ -156,10 +156,22 @@ struct AIUsageWidgetView: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 6) {
+            ViewThatFits(in: .horizontal) {
+              HStack(spacing: 6) {
                 ForEach(AIProvider.allCases) { provider in
                     ProviderCard(provider: provider, reading: entry.snapshot?.reading(for: provider))
                 }
+              }
+              VStack(spacing: 6) {
+                ForEach(AIProvider.allCases) { provider in
+                    HStack {
+                        Text(provider.rawValue).font(.caption.bold())
+                        Spacer()
+                        Text(entry.snapshot?.reading(for: provider)?.usedPercent ?? "—")
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+              }
             }
         }
         .padding(14)
@@ -174,7 +186,8 @@ struct AIUsageWidget: Widget {
         }
         .configurationDisplayName("AI Usage")
         .description("Usage used and reset times for your AI tools.")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 

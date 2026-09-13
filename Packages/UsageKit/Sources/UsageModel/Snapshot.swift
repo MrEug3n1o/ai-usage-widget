@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 /// What the host app hands the widget through the App Group container.
 ///
@@ -102,17 +103,23 @@ public struct ContainerSnapshotStore: SnapshotStore {
     }
 }
 
-/// Writes both channels and reads whichever answers.
-///
-/// Which one works is decided by how the build was signed, and the app cannot
-/// tell at runtime: an unsandboxed host can write to the App Group container
-/// whether or not it is entitled, so a successful write there says nothing
-/// about the sandboxed widget's ability to read it. Writing both is a few
-/// hundred bytes and removes the question.
+/// Selects the snapshot channel from the process signing identity.
+/// Development-team builds use their App Group; ad-hoc builds use the widget
+/// container. macOS may require user approval for the latter host-side access.
 public struct DualSnapshotStore: SnapshotStore {
-    private let stores: [SnapshotStore] = [AppGroupSnapshotStore(), ContainerSnapshotStore()]
+    private let stores: [SnapshotStore]
 
-    public init() {}
+    public init() {
+        // Ad-hoc releases have no team identity. Probing an App Group owned by
+        // a development team can prompt for access to other applications.
+        let task = SecTaskCreateFromSelf(nil)
+        let team = task.flatMap {
+            SecTaskCopyValueForEntitlement($0, "com.apple.developer.team-identifier" as CFString, nil) as? String
+        }
+        stores = team == "VG87LBRMTR"
+            ? [AppGroupSnapshotStore()]
+            : [ContainerSnapshotStore()]
+    }
 
     public func save(_ snapshot: Snapshot) throws {
         var failures: [Error] = []
