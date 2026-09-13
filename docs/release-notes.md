@@ -1,14 +1,17 @@
-Third release. Appearance, and a word about Codex.
+Fourth release. The desktop widget is now a Batteries-style glance.
 
-**What changed since v0.1.1**
+**What changed since v0.1.2**
 
-- The menu bar panel no longer reads pale next to real menu bar dropdowns.
-  MenuBarExtra's own window already paints the menu material, and the panel
-  set a second one on top of it; two materials composite lighter than one.
-  Removing it leaves the panel with the background macOS gives it.
-- The provider cards lost their tint. It sat a shade darker than the panel
-  behind them, which reads as a seam rather than as grouping — the spacing
-  between cards already groups them.
+- The medium widget shows Cursor, Codex and Claude together as three equal
+  columns: a remaining-quota ring, the provider mark, and a compact reset
+  countdown. No email, percentages, or window labels in the widget.
+- When a provider has several limits, the widget picks the tightest one
+  (lowest remaining capacity) and shows only that ring and its reset time.
+- Rings read as remaining capacity (battery semantics), coloured green /
+  orange / red by how little is left.
+- App icon refreshed to the lime→cyan open-bottom gauge with a white `%`.
+- Provider marks inside the rings are the monochrome Cursor, OpenAI and
+  Claude glyphs.
 
 **Installing.** Open the `.dmg` and drag AI Usage to Applications. The build is
 ad-hoc signed rather than notarized, so macOS will refuse it on first launch:
@@ -23,7 +26,7 @@ couple of minutes and signs it locally with your own Apple ID.
   no helper processes
 - Menu bar panel with session and weekly meters, renewal countdowns, and the
   standby marker showing which account is actually burning quota
-- Widgets in all three sizes
+- One medium widget with all three providers at a glance (small/large too)
 - Account registration from the Claude Code logins already on the machine, and
   a Codex section saying it needs none — that comes from the Codex CLI's login
 - Notifications as a limit crosses each configured threshold

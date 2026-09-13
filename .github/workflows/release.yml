@@ -1,0 +1,65 @@
+name: Release
+
+# Push a version tag to build the DMG and publish a GitHub Release:
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# Or run manually from the Actions tab (workflow_dispatch).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without v prefix (e.g. 0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build DMG
+        run: Scripts/release.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DMG="build/AIUsage-${{ steps.ver.outputs.version }}.dmg"
+          test -f "$DMG"
+          if gh release view "${{ steps.ver.outputs.tag }}" >/dev/null 2>&1; then
+            gh release upload "${{ steps.ver.outputs.tag }}" "$DMG" --clobber
+          else
+            gh release create "${{ steps.ver.outputs.tag }}" "$DMG" \
+              --title "AI Usage ${{ steps.ver.outputs.tag }}" \
+              --notes-file docs/release-notes.md \
+              --target "${{ github.sha }}"
+          fi
