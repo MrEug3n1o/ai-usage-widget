@@ -195,6 +195,35 @@ final class PrimaryMeterTests: XCTestCase {
     }
 }
 
+final class TightestWindowTests: XCTestCase {
+    func testLowestRemainingCapacityWinsRegardlessOfMeterOrder() {
+        let provider = Provider(name: "Codex", account: "ChatGPT", meters: [
+            Meter(label: "Session", percent: 29),
+            Meter(label: "Weekly", percent: 82),
+        ])
+
+        XCTAssertEqual(provider.tightestMeter?.label, "Weekly")
+        XCTAssertEqual(try XCTUnwrap(provider.tightestMeter?.remainingFraction), 0.18, accuracy: 0.0001)
+    }
+
+    func testRemainingFractionConvertsUsedQuotaAndClampsIt() {
+        XCTAssertEqual(Meter(label: "Usage", percent: 0).remainingFraction, 1)
+        XCTAssertEqual(Meter(label: "Usage", percent: 25).remainingFraction, 0.75)
+        XCTAssertEqual(Meter(label: "Usage", percent: 100).remainingFraction, 0)
+        XCTAssertEqual(Meter(label: "Usage", percent: 140).remainingFraction, 0)
+        XCTAssertEqual(Meter(label: "Usage", percent: -10).remainingFraction, 1)
+    }
+
+    func testUnknownWindowsDoNotWinOverMeasuredWindows() {
+        let windows = [
+            Meter(label: "Unknown"),
+            Meter(label: "Weekly", percent: 75),
+        ]
+        XCTAssertEqual(tightestWindow(from: windows)?.label, "Weekly")
+        XCTAssertNil(tightestWindow(from: [Meter(label: "Unknown")]))
+    }
+}
+
 final class IdentityTests: XCTestCase {
     /// The domain says which account it is — work or personal — so the label
     /// keeps it rather than showing only the local part.

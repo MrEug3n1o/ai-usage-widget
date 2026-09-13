@@ -30,6 +30,28 @@ public extension Meter {
     /// Rounded for display; the bar still uses the exact value.
     var displayPercent: String { "\(Int((percent ?? 0).rounded()))%" }
     var fraction: Double { min(max((percent ?? 0) / 100, 0), 1) }
+
+    /// The collectors report quota *used*. The widget is deliberately a
+    /// battery-style view, so its ring represents the inverse: capacity left.
+    /// Keep this conversion in the shared model rather than making each view
+    /// rediscover the semantics of `percent`.
+    var remainingFraction: Double? {
+        guard let percent else { return nil }
+        return 1 - min(max(percent / 100, 0), 1)
+    }
+}
+
+/// The one limit a minimal provider indicator represents.
+///
+/// A provider can publish several independent caps (for example, a five-hour
+/// and a weekly window). The least remaining capacity is the limit that will
+/// constrain the user first, so it is the only useful one in the compact
+/// widget. Windows without a measurement are intentionally ignored: selecting
+/// an unknown value would make an unavailable ring look meaningful.
+public func tightestWindow(from windows: [Meter]) -> Meter? {
+    windows
+        .filter { $0.remainingFraction != nil }
+        .min { ($0.remainingFraction ?? 1) < ($1.remainingFraction ?? 1) }
 }
 
 public extension Provider {
@@ -74,6 +96,11 @@ public extension Provider {
     var primaryMeter: Meter? {
         meters.first { $0.label == "Session" } ?? meters.first
     }
+
+    /// The quota window the combined WidgetKit indicator renders. This is
+    /// intentionally separate from `primaryMeter`, which keeps the app's
+    /// detailed session-first presentation behavior.
+    var tightestMeter: Meter? { tightestWindow(from: meters) }
 }
 
 public extension Meter {

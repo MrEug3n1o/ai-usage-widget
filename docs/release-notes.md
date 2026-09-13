@@ -1,14 +1,11 @@
-Third release. Appearance, and a word about Codex.
+## What changed in v0.2.2
 
-**What changed since v0.1.1**
-
-- The menu bar panel no longer reads pale next to real menu bar dropdowns.
-  MenuBarExtra's own window already paints the menu material, and the panel
-  set a second one on top of it; two materials composite lighter than one.
-  Removing it leaves the panel with the background macOS gives it.
-- The provider cards lost their tint. It sat a shade darker than the panel
-  behind them, which reads as a seam rather than as grouping — the spacing
-  between cards already groups them.
+- Rebuilt the desktop widget so each provider has a readable name, usage
+  percentage, capacity ring, and reset status.
+- Replaced unreliable icon glyphs that could render as blank or indistinct
+  shapes in macOS widget vibrancy modes.
+- The compact widget now chooses the provider window with the least remaining
+  capacity, so the displayed limit is the one that needs attention first.
 
 **Installing.** Open the `.dmg` and drag AI Usage to Applications. The build is
 ad-hoc signed rather than notarized, so macOS will refuse it on first launch:
@@ -23,7 +20,7 @@ couple of minutes and signs it locally with your own Apple ID.
   no helper processes
 - Menu bar panel with session and weekly meters, renewal countdowns, and the
   standby marker showing which account is actually burning quota
-- Widgets in all three sizes
+- A desktop medium widget for Claude, Codex, and Cursor
 - Account registration from the Claude Code logins already on the machine, and
   a Codex section saying it needs none — that comes from the Codex CLI's login
 - Notifications as a limit crosses each configured threshold
