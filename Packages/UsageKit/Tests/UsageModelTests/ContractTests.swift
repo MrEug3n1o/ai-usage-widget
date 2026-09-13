@@ -209,3 +209,100 @@ final class IdentityTests: XCTestCase {
         XCTAssertEqual(Provider(name: "Codex", account: "ChatGPT").shortLabel, "ChatGPT")
     }
 }
+
+final class WidgetSelectionTests: XCTestCase {
+    func testRemainingFractionInvertsUsedPercent() {
+        let meter = Meter(label: "Session", percent: 82)
+        XCTAssertEqual(WidgetSelection.remainingFraction(of: meter), 0.18, accuracy: 1e-9)
+    }
+
+    func testRemainingFractionClamps() {
+        XCTAssertEqual(WidgetSelection.remainingFraction(of: Meter(label: "x", percent: -5)), 1)
+        XCTAssertEqual(WidgetSelection.remainingFraction(of: Meter(label: "x", percent: 150)), 0)
+        XCTAssertNil(WidgetSelection.remainingFraction(of: Meter(label: "x")))
+    }
+
+    /// Most restrictive = lowest remaining, not session preference.
+    func testTightestWindowPicksLowestRemaining() {
+        let meters = [
+            Meter(label: "Session", percent: 29, resetAt: "session"),
+            Meter(label: "Weekly", percent: 82, resetAt: "weekly"),
+        ]
+        let tightest = WidgetSelection.tightestWindow(from: meters)
+        XCTAssertEqual(tightest?.label, "Weekly")
+        XCTAssertEqual(tightest?.percent, 82)
+    }
+
+    func testTightestWindowIgnoresMetersWithoutPercent() {
+        let meters = [
+            Meter(label: "Session"),
+            Meter(label: "Weekly", percent: 40),
+        ]
+        XCTAssertEqual(WidgetSelection.tightestWindow(from: meters)?.label, "Weekly")
+    }
+
+    func testIndicatorsAlwaysReturnThreeInOrder() {
+        let indicators = WidgetSelection.indicators(from: [])
+        XCTAssertEqual(indicators.map(\.kind), [.cursor, .codex, .claude])
+        XCTAssertTrue(indicators.allSatisfy { !$0.isAvailable })
+    }
+
+    func testIndicatorUsesTightestMeterAndParsesReset() {
+        let reset = "2026-09-20T12:00:00Z"
+        let providers = [
+            Provider(name: "Codex", account: "ChatGPT", meters: [
+                Meter(label: "Session", percent: 29, resetAt: "2026-09-13T14:00:00Z"),
+                Meter(label: "Weekly", percent: 82, resetAt: reset),
+            ]),
+        ]
+        let codex = WidgetSelection.indicator(for: .codex, from: providers)
+        XCTAssertEqual(codex.remainingFraction!, 0.18, accuracy: 1e-9)
+        XCTAssertEqual(codex.resetAt, Formatting.parseISO(reset))
+    }
+
+    func testUnconfiguredProviderIsUnavailable() {
+        let providers = [
+            Provider(name: "Cursor", account: "-", error: "set it up with cursor-admin"),
+        ]
+        let cursor = WidgetSelection.indicator(for: .cursor, from: providers)
+        XCTAssertNil(cursor.remainingFraction)
+        XCTAssertNil(cursor.resetAt)
+    }
+
+    func testRemainingSeverityThresholds() {
+        XCTAssertEqual(RemainingSeverity(remainingFraction: 0.26), .normal)
+        XCTAssertEqual(RemainingSeverity(remainingFraction: 0.25), .low)
+        XCTAssertEqual(RemainingSeverity(remainingFraction: 0.11), .low)
+        XCTAssertEqual(RemainingSeverity(remainingFraction: 0.10), .critical)
+        XCTAssertEqual(RemainingSeverity(remainingFraction: nil), .unavailable)
+    }
+}
+
+final class CompactResetTests: XCTestCase {
+    private let now = Date(timeIntervalSince1970: 1_770_000_000)
+
+    func testCompactOmitsZeroParts() {
+        XCTAssertEqual(
+            Formatting.compactResetRemaining(until: now.addingTimeInterval(4 * 86_400), now: now),
+            "4d")
+        XCTAssertEqual(
+            Formatting.compactResetRemaining(until: now.addingTimeInterval(2 * 3600), now: now),
+            "2h")
+        XCTAssertEqual(
+            Formatting.compactResetRemaining(
+                until: now.addingTimeInterval(2 * 3600 + 14 * 60), now: now),
+            "2h 14m")
+        XCTAssertEqual(
+            Formatting.compactResetRemaining(until: now.addingTimeInterval(47 * 60), now: now),
+            "47m")
+        XCTAssertEqual(
+            Formatting.compactResetRemaining(
+                until: now.addingTimeInterval(1 * 86_400 + 4 * 3600), now: now),
+            "1d 4h")
+    }
+
+    func testCompactUnknownIsEmDash() {
+        XCTAssertEqual(Formatting.compactResetRemaining(until: nil, now: now), "—")
+    }
+}
+

@@ -9,6 +9,11 @@ public enum Formatting {
     /// as a real value. Port of `resetRemaining`.
     public static func resetRemaining(_ isoDate: String?, now: Date = Date()) -> String {
         guard let isoDate, !isoDate.isEmpty, let date = parseISO(isoDate) else { return "" }
+        return resetRemaining(until: date, now: now)
+    }
+
+    /// Same buckets as `resetRemaining`, from a parsed date.
+    public static func resetRemaining(until date: Date, now: Date = Date()) -> String {
         let seconds = max(0, Int(date.timeIntervalSince(now)))
         if seconds >= 86_400 {
             return "\(seconds / 86_400)d \((seconds % 86_400) / 3600)h"
@@ -17,6 +22,23 @@ public enum Formatting {
             return "\(seconds / 3600)h \((seconds % 3600) / 60)m"
         }
         return "\(seconds / 60)m"
+    }
+
+    /// Widget countdown: omit zero parts ("4d", "2h", "2h 14m", "47m").
+    /// Returns "—" when the reset time is unknown.
+    public static func compactResetRemaining(until date: Date?, now: Date = Date()) -> String {
+        guard let date else { return "—" }
+        let seconds = max(0, Int(date.timeIntervalSince(now)))
+        let days = seconds / 86_400
+        let hours = (seconds % 86_400) / 3600
+        let minutes = (seconds % 3600) / 60
+        if days > 0 {
+            return hours > 0 ? "\(days)d \(hours)h" : "\(days)d"
+        }
+        if hours > 0 {
+            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        }
+        return "\(minutes)m"
     }
 
     /// Providers emit a few ISO-8601 shapes; accept fractional seconds or not.

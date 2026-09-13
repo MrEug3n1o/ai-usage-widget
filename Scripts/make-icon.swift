@@ -4,6 +4,8 @@ import AppKit
 // palette stays tied to the one the widget and panel use.
 //
 //   swift Scripts/make-icon.swift && ...   (see Scripts/make-icon.sh)
+//
+// Visual target: dark squircle + open-bottom gauge (lime → cyan) + white "%".
 
 let S: CGFloat = 1024
 let img = NSImage(size: NSSize(width: S, height: S))
@@ -21,24 +23,22 @@ ctx.addPath(CGPath(roundedRect: body, cornerWidth: radius, cornerHeight: radius,
                    transform: nil))
 ctx.clip()
 
-// Graphite, so the provider accents carry the colour. Deliberately not the
-// blue ../disk-usage-widget uses — these two sit next to each other.
+// Near-black graphite with a soft top highlight — matches the release icon art.
 let bg = CGGradient(colorsSpace: cs, colors: [
-    CGColor(red: 0.20, green: 0.21, blue: 0.24, alpha: 1),
-    CGColor(red: 0.09, green: 0.09, blue: 0.11, alpha: 1),
+    CGColor(red: 0.16, green: 0.16, blue: 0.17, alpha: 1),
+    CGColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1),
 ] as CFArray, locations: [0, 1])!
-ctx.drawLinearGradient(bg, start: CGPoint(x: body.minX, y: body.maxY),
-                       end: CGPoint(x: body.maxX, y: body.minY), options: [])
+ctx.drawLinearGradient(bg, start: CGPoint(x: body.midX, y: body.maxY),
+                       end: CGPoint(x: body.midX, y: body.minY), options: [])
 ctx.restoreGState()
 
 // A 270-degree gauge with the gap at the bottom: reads as a meter rather than
-// as a progress ring, and the open bottom distinguishes it from the disk
-// widget's closed circle at a glance in the Dock or the widget gallery.
-let center = CGPoint(x: S / 2, y: S / 2 + S * 0.015)
+// as a progress ring, and the open bottom distinguishes it from closed rings.
+let center = CGPoint(x: S / 2, y: S / 2 + S * 0.01)
 let ringR = S * 0.255
 let lw = S * 0.105
-let startAngle = CGFloat.pi * 1.25         // 225 degrees, lower left
-let sweep = CGFloat.pi * 1.5               // 270 degrees, clockwise
+let startAngle = CGFloat.pi * 1.25         // 225°, lower left
+let sweep = CGFloat.pi * 1.5               // 270°, clockwise
 let fill: CGFloat = 0.72
 
 ctx.setLineCap(.round)
@@ -58,15 +58,12 @@ ctx.addArc(center: center, radius: ringR, startAngle: startAngle,
            endAngle: startAngle - sweep * fill, clockwise: true)
 ctx.replacePathWithStrokedPath()
 ctx.clip()
-// The provider accents from UsageModel's Presentation.swift: Claude, then
-// Cursor. One arc spanning them says "several accounts, one reading".
+// Lime → emerald → cyan, matching the provided release icon art.
 let arc = CGGradient(colorsSpace: cs, colors: [
-    CGColor(red: 0.85, green: 0.47, blue: 0.29, alpha: 1),
-    CGColor(red: 0.93, green: 0.66, blue: 0.20, alpha: 1),
-    CGColor(red: 0.40, green: 0.55, blue: 0.95, alpha: 1),
-] as CFArray, locations: [0, 0.5, 1])!
-// Horizontal: the filled arc spans left-to-right, so a diagonal axis leaves
-// the cool end unused and the whole ring comes out warm.
+    CGColor(red: 0.55, green: 0.95, blue: 0.20, alpha: 1),
+    CGColor(red: 0.20, green: 0.90, blue: 0.55, alpha: 1),
+    CGColor(red: 0.25, green: 0.75, blue: 0.95, alpha: 1),
+] as CFArray, locations: [0, 0.45, 1])!
 ctx.drawLinearGradient(arc,
                        start: CGPoint(x: center.x - ringR - lw / 2, y: center.y),
                        end: CGPoint(x: center.x + ringR + lw / 2, y: center.y),
