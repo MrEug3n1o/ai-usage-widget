@@ -264,7 +264,10 @@ public enum Accounts {
         let secret = secret.trimmingCharacters(in: .whitespacesAndNewlines)
         switch method {
         case "admin_key":
-            guard secret.hasPrefix("key_") else { throw SimpleError("the key must start with key_") }
+            // Cursor used to mint `key_…`; current dashboard keys are `crsr_…`.
+            guard secret.hasPrefix("key_") || secret.hasPrefix("crsr_") else {
+                throw SimpleError("the key must start with key_ or crsr_")
+            }
             let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !email.isEmpty else {
                 throw SimpleError("email is required with the admin key")

@@ -402,7 +402,7 @@ private struct CursorSection: View {
                 Text("Dashboard cookie").tag("dashboard_cookie")
             }
             // In a grouped Form the first string is the row's LABEL, not a
-            // placeholder — passing "key_…" there labelled the row "key_…"
+            // placeholder — passing "crsr_…" there labelled the row "crsr_…"
             // beside an empty box. The example goes in `prompt`.
             //
             // SecureField because these are credentials and this window can be
@@ -410,7 +410,7 @@ private struct CursorSection: View {
             SecureField(method == "admin_key" ? "Admin key" : "Session cookie",
                         text: $secret,
                         prompt: Text(method == "admin_key"
-                                     ? "key_…" : "WorkosCursorSessionToken=…"))
+                                     ? "crsr_…" : "WorkosCursorSessionToken=…"))
             if method == "admin_key" {
                 TextField("Email", text: $email, prompt: Text("you@company.com"))
             }
